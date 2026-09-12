@@ -97,12 +97,24 @@ create policy "profiles own rows" on public.profiles for all using (auth.uid() =
 create policy "goals own rows" on public.goals for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "resources own rows" on public.resources for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "resource goals through owned resource" on public.resource_goals for all
-  using (exists (select 1 from public.resources r where r.id = resource_id and r.user_id = auth.uid()))
-  with check (exists (select 1 from public.resources r where r.id = resource_id and r.user_id = auth.uid()));
+  using (
+    exists (select 1 from public.resources r where r.id = resource_id and r.user_id = auth.uid())
+    and exists (select 1 from public.goals g where g.id = goal_id and g.user_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.resources r where r.id = resource_id and r.user_id = auth.uid())
+    and exists (select 1 from public.goals g where g.id = goal_id and g.user_id = auth.uid())
+  );
 create policy "sessions own rows" on public.sessions for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "session items through owned session" on public.session_items for all
-  using (exists (select 1 from public.sessions s where s.id = session_id and s.user_id = auth.uid()))
-  with check (exists (select 1 from public.sessions s where s.id = session_id and s.user_id = auth.uid()));
+  using (
+    exists (select 1 from public.sessions s where s.id = session_id and s.user_id = auth.uid())
+    and exists (select 1 from public.resources r where r.id = resource_id and r.user_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.sessions s where s.id = session_id and s.user_id = auth.uid())
+    and exists (select 1 from public.resources r where r.id = resource_id and r.user_id = auth.uid())
+  );
 create policy "interactions own rows" on public.interactions for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create or replace function public.complete_onboarding(
@@ -164,4 +176,5 @@ begin
 end;
 $$;
 
+revoke all on function public.complete_onboarding(text, integer, jsonb) from public;
 grant execute on function public.complete_onboarding(text, integer, jsonb) to authenticated;

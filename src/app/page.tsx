@@ -48,7 +48,7 @@ export default function Home() {
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Link
               className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 font-semibold text-white transition hover:bg-[var(--accent-hover)]"
-              href="/onboarding"
+              href="/login"
             >
               Get started
             </Link>
