@@ -26,7 +26,13 @@ type ConnectionsData = {
 
 /** OAuth failures arrive as redirect params. Never show the raw code to a user. */
 const ERROR_COPY: Record<string, string> = {
-  access_denied: "You cancelled the Google sign-in. Nothing was connected.",
+  access_denied:
+    "Google did not complete the sign-in. If you did not cancel, this Google account may "
+    + "not be on the app's allowed testers list yet.",
+  not_a_test_user:
+    "This Google account is not on the app's allowed testers list. The owner needs to add "
+    + "your Google address under APIs & Services -> OAuth consent screen -> Test users.",
+  oauth_error: "Google rejected the sign-in. Please try again.",
   youtube_not_configured:
     "YouTube is not configured on the server yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
   missing_oauth_params: "That sign-in link was incomplete. Please try connecting again.",

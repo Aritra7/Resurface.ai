@@ -33,9 +33,26 @@ export const serverEnv = {
   get tokenEncryptionKey() {
     return required("TOKEN_ENCRYPTION_KEY");
   },
+  /**
+   * Public base URL of this deployment, used to build the OAuth redirect URI.
+   *
+   * Falling back to localhost on a hosted app is the worst possible default: Google
+   * accepts the request, then redirects the user to their own machine, where nothing
+   * is listening. The connection appears to fail for no reason.
+   *
+   * So: an explicit APP_URL wins, then Vercel's own VERCEL_PROJECT_PRODUCTION_URL
+   * (stable across deploys, unlike VERCEL_URL which changes every build and would
+   * never match a registered redirect URI), and only then localhost.
+   */
   get appUrl() {
-    return process.env.APP_URL || "http://localhost:3000";
+    if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
+
+    const vercelProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    if (vercelProductionUrl) return `https://${vercelProductionUrl}`;
+
+    return "http://localhost:3000";
   },
+
   /** Optional so the app still boots before Google credentials arrive. */
   get googleClientId() {
     return optional("GOOGLE_CLIENT_ID");

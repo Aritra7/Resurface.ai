@@ -20,8 +20,18 @@ export async function GET(request: NextRequest) {
 
   const params = request.nextUrl.searchParams;
 
-  // The user can decline at Google's consent screen; that is not an error worth shouting about.
-  if (params.get("error")) return fail("access_denied");
+  // Google returns access_denied both when the user declines AND when the app is in
+  // Testing mode and they are not a listed test user. Those need different advice, so
+  // pass the distinction through rather than collapsing both into "you cancelled".
+  const googleError = params.get("error");
+  if (googleError) {
+    const detail = params.get("error_subtype") ?? params.get("error_description") ?? "";
+    console.warn("[youtube callback] google error:", googleError, detail);
+    if (googleError === "access_denied" && /test|verif|block/i.test(detail)) {
+      return fail("not_a_test_user");
+    }
+    return fail(googleError === "access_denied" ? "access_denied" : "oauth_error");
+  }
 
   const code = params.get("code");
   const state = params.get("state");
