@@ -412,16 +412,22 @@ Map the normalized result to the current schema as follows:
 | effort | `resources.cognitive_effort` |
 | actionability | `resources.actionability` |
 | time sensitivity | `resources.time_sensitivity` |
+| publication date | `resources.published_at` |
+| relevance deadline | `resources.relevant_until` |
+| time-sensitivity evidence | `resources.time_sensitivity_reason` |
+| time-sensitivity confidence | `resources.time_sensitivity_confidence` |
 | goal relevance | `resource_goals.relevance` |
 | processing state | `resources.enrichment_status` |
 
 One row in `resource_goals` is created for every confirmed goal association. The
 `goal_id` must belong to the authenticated user; row-level security enforces this.
 
-The current schema does not yet persist category labels, thumbnails, provider IDs,
-raw extraction errors, or whether duration is estimated. Before implementing those
-features, add one reviewed follow-up migration rather than overloading unrelated
-columns. Suggested additions are:
+The recommender time-context fields are added by
+`supabase/migrations/202609120002_recommender_time_context.sql`. The schema does not
+yet persist category labels, thumbnails, provider IDs, raw extraction errors, or
+whether duration is estimated. Before implementing those features, add one reviewed
+follow-up migration rather than overloading unrelated columns. Suggested additions
+are:
 
 ```text
 resources.categories text[] not null default '{}'

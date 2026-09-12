@@ -51,3 +51,4 @@ pnpm build
 - [Web MVP scope](docs/MVP_SCOPE.md)
 - [Onboarding UX recommendations](docs/ONBOARDING_UX.md)
 - [Resource ingestion and categorization specification](docs/INGESTION_AND_CATEGORIZATION.md)
+- [Recommender system specification](docs/RECOMMENDER_SYSTEM.md)
