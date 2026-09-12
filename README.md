@@ -1,6 +1,6 @@
 # Resurface.AI
 
-The right save at the right time
+The right save at the right time, resurfacing it.
 
 Resurface.AI turns forgotten bookmarks into focused revisit sessions built around a user's goals and available time.
 
