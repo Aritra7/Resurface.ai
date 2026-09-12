@@ -191,6 +191,9 @@ export async function ingestItems(
       time_sensitivity_reason: describeTimeSensitivity(classification.timeSensitivity),
       time_sensitivity_confidence: classification.confidence,
       published_at: item.publishedAt ?? null,
+      // The resources library and learning path filter on this. Computing categories
+      // and then discarding them left every imported item unfilterable.
+      categories: classification.categories.map((category) => category.slug),
       // An explicitly imported save IS the user's intent to revisit, so it becomes
       // eligible immediately. Without this the row stays `unreviewed`, and
       // /session/new only loads active and snoozed — so nothing imported would ever
