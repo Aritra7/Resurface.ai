@@ -19,7 +19,7 @@ export async function GET() {
     supabase
       .from("connection_status")
       .select("id, provider, external_account_label, status, last_sync_at, items_count, last_error"),
-    supabase.from("resources").select("source").eq("user_id", user.id),
+    supabase.from("resources").select("source, enrichment_status").eq("user_id", user.id),
     supabase
       .from("sync_runs")
       .select("provider, status, items_upserted, finished_at, error")
@@ -27,6 +27,10 @@ export async function GET() {
       .order("started_at", { ascending: false })
       .limit(5),
   ]);
+
+  const pendingEnrichment = (resources ?? []).filter(
+    (row) => (row as { enrichment_status?: string }).enrichment_status === "pending",
+  ).length;
 
   const counts: Record<string, number> = {};
   for (const row of resources ?? []) {
@@ -38,6 +42,7 @@ export async function GET() {
     connections: connections ?? [],
     counts,
     totalResources: resources?.length ?? 0,
+    pendingEnrichment,
     recentRuns: runs ?? [],
     youtubeConfigured: isYouTubeConfigured(),
   });

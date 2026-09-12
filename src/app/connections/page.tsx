@@ -19,6 +19,7 @@ type ConnectionsData = {
   connections: Connection[];
   counts: Record<string, number>;
   totalResources: number;
+  pendingEnrichment: number;
   youtubeConfigured: boolean;
 };
 
@@ -160,6 +161,38 @@ function ConnectionsInner() {
       setError("Could not reach the server.");
     }
     setBusy(null);
+  }
+
+  async function enrichPending() {
+    setBusy("enrich");
+    setError("");
+    setNotice("");
+    try {
+      // The route works in bounded batches so no single request runs too long; loop
+      // until nothing is left rather than making the user click repeatedly.
+      let enriched = 0;
+      let remaining = 0;
+      for (let pass = 0; pass < 25; pass += 1) {
+        const response = await fetch("/api/enrich", { method: "POST" });
+        const body = await response.json();
+        if (!response.ok) {
+          setError(body.error ?? "Enrichment failed.");
+          break;
+        }
+        enriched += body.enriched ?? 0;
+        remaining = body.remaining ?? 0;
+        if ((body.processed ?? 0) === 0 || remaining === 0) break;
+      }
+      setNotice(
+        enriched > 0
+          ? `Added titles and thumbnails to ${enriched} ${enriched === 1 ? "item" : "items"}.`
+          : "Nothing left to enrich.",
+      );
+    } catch {
+      setError("Enrichment failed. Is the dev server still running?");
+    }
+    setBusy(null);
+    load();
   }
 
   async function disconnect(provider: string) {
@@ -394,9 +427,32 @@ function ConnectionsInner() {
           </article>
         </section>
 
-        <p className="mt-10 text-center text-sm text-[var(--muted)]">
-          {data?.totalResources ?? 0} saved {data?.totalResources === 1 ? "resource" : "resources"} in your backlog.
-        </p>
+        <section className="mt-8 rounded-[2rem] border border-[var(--border)] bg-white p-7 text-center">
+          <p className="text-lg font-semibold">
+            {data?.totalResources ?? 0} saved{" "}
+            {data?.totalResources === 1 ? "resource" : "resources"} in your backlog
+          </p>
+          {(data?.pendingEnrichment ?? 0) > 0 ? (
+            <>
+              <p className="mx-auto mt-2 max-w-md leading-7 text-[var(--muted)]">
+                {data?.pendingEnrichment} still need a title. We read only the public preview
+                information each platform publishes for links.
+              </p>
+              <button
+                className="mt-5 min-h-12 rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+                disabled={busy === "enrich"}
+                onClick={enrichPending}
+                type="button"
+              >
+                {busy === "enrich" ? "Fetching details…" : "Fetch titles and thumbnails"}
+              </button>
+            </>
+          ) : (
+            <p className="mt-2 leading-7 text-[var(--muted)]">
+              Every resource has its details. You are ready to build a session.
+            </p>
+          )}
+        </section>
       </div>
     </main>
   );
