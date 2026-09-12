@@ -1,0 +1,44 @@
+/**
+ * Connection state for the /connections page.
+ *
+ * Reads `connection_status`, the view that deliberately excludes every token column,
+ * so nothing sensitive can reach the browser even by accident. Per-source resource
+ * counts come from `resources` under the caller's own RLS.
+ */
+import { NextResponse } from "next/server";
+import { createServerClient, getCurrentUser } from "@/lib/supabase/server";
+import { isYouTubeConfigured } from "@/lib/env";
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  const supabase = await createServerClient();
+
+  const [{ data: connections }, { data: resources }, { data: runs }] = await Promise.all([
+    supabase
+      .from("connection_status")
+      .select("id, provider, external_account_label, status, last_sync_at, items_count, last_error"),
+    supabase.from("resources").select("source").eq("user_id", user.id),
+    supabase
+      .from("sync_runs")
+      .select("provider, status, items_upserted, finished_at, error")
+      .eq("user_id", user.id)
+      .order("started_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  const counts: Record<string, number> = {};
+  for (const row of resources ?? []) {
+    const source = (row as { source: string }).source;
+    counts[source] = (counts[source] ?? 0) + 1;
+  }
+
+  return NextResponse.json({
+    connections: connections ?? [],
+    counts,
+    totalResources: resources?.length ?? 0,
+    recentRuns: runs ?? [],
+    youtubeConfigured: isYouTubeConfigured(),
+  });
+}

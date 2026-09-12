@@ -161,12 +161,18 @@ export default function DashboardPage() {
 
         <section className="mt-8 rounded-[2rem] border border-dashed border-[var(--border)] bg-white/60 p-8 text-center">
           <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{activeResourceCount} active {activeResourceCount === 1 ? "save" : "saves"}</p>
-          <h2 className="mt-2 text-2xl font-semibold">{activeResourceCount > 0 ? "Your backlog is ready for a session" : "Try the optimizer while your backlog fills up"}</h2>
+          <h2 className="mt-2 text-2xl font-semibold">{activeResourceCount > 0 ? "Your backlog is ready for a session" : "Bring in what you already saved"}</h2>
           <p className="mx-auto mt-3 max-w-xl leading-7 text-[var(--muted)]">
             {activeResourceCount > 0
               ? "Resurface will use your confirmed resources, goal matches, and time estimates."
-              : "Sample saves let you test time budgets, energy modes, explanations, and feedback immediately."}
+              : "Connect YouTube, Chrome, or Instagram to import saves you already made, with their real durations. Sample saves work too."}
           </p>
+          <Link
+            className="mt-6 inline-flex min-h-12 items-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)]"
+            href="/connections"
+          >
+            {activeResourceCount > 0 ? "Manage connections" : "Connect your accounts"}
+          </Link>
         </section>
       </div>
     </main>

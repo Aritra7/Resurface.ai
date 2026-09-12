@@ -1,0 +1,317 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+type Connection = {
+  id: string;
+  provider: string;
+  external_account_label: string | null;
+  status: string;
+  last_sync_at: string | null;
+  items_count: number;
+  last_error: string | null;
+};
+
+type ConnectionsData = {
+  connections: Connection[];
+  counts: Record<string, number>;
+  totalResources: number;
+  youtubeConfigured: boolean;
+};
+
+/** OAuth failures arrive as redirect params. Never show the raw code to a user. */
+const ERROR_COPY: Record<string, string> = {
+  access_denied: "You cancelled the Google sign-in. Nothing was connected.",
+  youtube_not_configured:
+    "YouTube is not configured on the server yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+  missing_oauth_params: "That sign-in link was incomplete. Please try connecting again.",
+  state_mismatch: "The sign-in could not be verified. Please try again from this page.",
+  token_exchange_failed: "Google rejected the sign-in. Please try again.",
+  no_refresh_token:
+    "Google did not return a refresh token. Remove Resurface at myaccount.google.com/permissions, then reconnect.",
+  connection_save_failed: "We could not save the connection. Please try again.",
+};
+
+function ConnectionsInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+
+  const [data, setData] = useState<ConnectionsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const response = await fetch("/api/connections");
+    if (response.status === 401) {
+      router.replace("/login");
+      return;
+    }
+    setData(await response.json());
+    setLoading(false);
+  }, [router]);
+
+  useEffect(() => {
+    // Deferred rather than called synchronously: React 19 flags a synchronous setState
+    // in an effect body because it cascades renders. The fetch resolving later is what
+    // actually updates state, and the guard drops a response that arrives post-unmount.
+    let cancelled = false;
+    void (async () => {
+      const response = await fetch("/api/connections");
+      if (cancelled) return;
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      const body = await response.json();
+      if (cancelled) return;
+      setData(body);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
+  // Derived from the URL rather than copied into state, so the redirect message and any
+  // message set by a later action (sync, disconnect) cannot fight over the same slot.
+  const errorParam = params.get("error");
+  const redirectError = errorParam
+    ? (ERROR_COPY[errorParam] ?? "Something went wrong connecting that account.")
+    : "";
+  const redirectNotice =
+    params.get("connected") === "youtube" ? "YouTube connected. Import your saved videos below." : "";
+
+  const shownError = error || redirectError;
+  const shownNotice = notice || (error ? "" : redirectNotice);
+
+  async function syncYouTube() {
+    setBusy("youtube");
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/sync/youtube", { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) {
+        setError(
+          /has not been used in project|is disabled/i.test(body.error ?? "")
+            ? "YouTube Data API v3 is not enabled on your Google Cloud project. Enable it, then sync again."
+            : body.error ?? "Sync failed.",
+        );
+      } else {
+        setNotice(`Imported ${body.imported} of ${body.seen} saved videos.`);
+      }
+    } catch {
+      setError("Sync failed. Is the dev server still running?");
+    }
+    setBusy(null);
+    load();
+  }
+
+  async function disconnect(provider: string) {
+    if (!confirm(`Disconnect ${provider}? Your imported saves are kept.`)) return;
+    setBusy(provider);
+    await fetch(`/api/connect/${provider}/disconnect`, { method: "POST" });
+    setBusy(null);
+    setNotice(`${provider} disconnected.`);
+    load();
+  }
+
+  async function signOut() {
+    await createClient().auth.signOut();
+    router.replace("/");
+  }
+
+  if (loading) {
+    return <main className="flex min-h-screen items-center justify-center">Loading your connections…</main>;
+  }
+
+  const youtube = data?.connections.find((c) => c.provider === "youtube");
+
+  return (
+    <main className="min-h-screen px-5 py-8 sm:px-8">
+      <div className="mx-auto max-w-3xl">
+        <header className="flex items-center justify-between gap-4">
+          <Link className="text-lg font-semibold" href="/">
+            Resurface<span className="text-[var(--accent)]">.AI</span>
+          </Link>
+          <div className="flex items-center gap-5">
+            <Link className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]" href="/dashboard">
+              Dashboard
+            </Link>
+            <button className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]" onClick={signOut} type="button">
+              Sign out
+            </button>
+          </div>
+        </header>
+
+        <section className="mt-12">
+          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Connections</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight">Bring in what you already saved.</h1>
+          <p className="mt-4 max-w-xl text-lg leading-8 text-[var(--muted)]">
+            Connect a platform once and Resurface imports your saves. You can disconnect at any time
+            and keep everything already imported.
+          </p>
+        </section>
+
+        {shownNotice && (
+          <p aria-live="polite" className="mt-8 rounded-2xl border border-[var(--accent)] bg-[#e8f2ea] px-5 py-4 text-sm leading-6">
+            {shownNotice}
+          </p>
+        )}
+        {shownError && (
+          <p aria-live="polite" className="mt-8 rounded-2xl border border-[#d9b4b4] bg-[#f8efef] px-5 py-4 text-sm leading-6">
+            {shownError}
+          </p>
+        )}
+
+        <section className="mt-8 space-y-4">
+          {/* YouTube */}
+          <article className="rounded-[2rem] border border-[var(--border)] bg-white p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold">YouTube</h2>
+                <p className="mt-2 max-w-md leading-7 text-[var(--muted)]">
+                  Imports your liked videos and playlists, with real durations.
+                </p>
+              </div>
+              <StatusPill connected={Boolean(youtube)} status={youtube?.status} />
+            </div>
+
+            {youtube ? (
+              <>
+                <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-5 text-sm sm:grid-cols-3">
+                  <Stat label="Account" value={youtube.external_account_label ?? "Connected"} />
+                  <Stat label="Videos imported" value={String(data?.counts.youtube ?? 0)} />
+                  <Stat
+                    label="Last sync"
+                    value={youtube.last_sync_at ? new Date(youtube.last_sync_at).toLocaleString() : "Never"}
+                  />
+                </dl>
+                {youtube.last_error && (
+                  <p className="mt-4 rounded-xl bg-[#f8efef] px-4 py-3 text-sm">{youtube.last_error}</p>
+                )}
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    className="min-h-12 rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+                    disabled={busy === "youtube"}
+                    onClick={syncYouTube}
+                    type="button"
+                  >
+                    {busy === "youtube" ? "Importing…" : "Import saved videos"}
+                  </button>
+                  <button
+                    className="min-h-12 rounded-full border border-[var(--border)] px-6 font-semibold transition hover:border-[var(--accent)] disabled:opacity-60"
+                    disabled={busy === "youtube"}
+                    onClick={() => disconnect("youtube")}
+                    type="button"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="mt-6">
+                {data?.youtubeConfigured ? (
+                  // A plain link, not fetch(): the server must issue a real redirect to
+                  // Google, and set the PKCE and state cookies on the way out.
+                  <a
+                    className="inline-flex min-h-12 items-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)]"
+                    href="/api/connect/youtube/start"
+                  >
+                    Connect YouTube
+                  </a>
+                ) : (
+                  <p className="rounded-xl bg-[#f2f4ee] px-4 py-3 text-sm leading-6">
+                    YouTube is not configured on the server yet.
+                  </p>
+                )}
+                <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+                  Google will show an &ldquo;unverified app&rdquo; warning because this build is in
+                  testing mode. Choose <strong>Advanced</strong>, then <strong>Go to Resurface</strong>.
+                </p>
+              </div>
+            )}
+          </article>
+
+          {/* Chrome - not yet built */}
+          <article className="rounded-[2rem] border border-dashed border-[var(--border)] bg-white/60 p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold">Chrome bookmarks &amp; tabs</h2>
+                <p className="mt-2 max-w-md leading-7 text-[var(--muted)]">
+                  A browser extension imports your bookmark folders and open tabs.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#edf0e8] px-3 py-1.5 text-sm font-medium text-[var(--muted)]">
+                Coming next
+              </span>
+            </div>
+          </article>
+
+          {/* Instagram - import, never credentials */}
+          <article className="rounded-[2rem] border border-dashed border-[var(--border)] bg-white/60 p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold">Instagram</h2>
+                <p className="mt-2 max-w-md leading-7 text-[var(--muted)]">
+                  Upload the Saved file from Instagram&rsquo;s official data export. We never ask for
+                  your Instagram password.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#edf0e8] px-3 py-1.5 text-sm font-medium text-[var(--muted)]">
+                Coming next
+              </span>
+            </div>
+          </article>
+        </section>
+
+        <p className="mt-10 text-center text-sm text-[var(--muted)]">
+          {data?.totalResources ?? 0} saved {data?.totalResources === 1 ? "resource" : "resources"} in your backlog.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function StatusPill({ connected, status }: { connected: boolean; status?: string }) {
+  if (!connected) {
+    return (
+      <span className="rounded-full bg-[#edf0e8] px-3 py-1.5 text-sm font-medium text-[var(--muted)]">
+        Not connected
+      </span>
+    );
+  }
+  const broken = status === "error" || status === "expired";
+  return (
+    <span
+      className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+        broken ? "bg-[#f8efef] text-[#9b4444]" : "bg-[#e4f2df] text-[var(--accent)]"
+      }`}
+    >
+      {broken ? "Needs attention" : "Connected"}
+    </span>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[var(--muted)]">{label}</dt>
+      <dd className="mt-1 font-semibold">{value}</dd>
+    </div>
+  );
+}
+
+export default function ConnectionsPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={<main className="flex min-h-screen items-center justify-center">Loading…</main>}>
+      <ConnectionsInner />
+    </Suspense>
+  );
+}
