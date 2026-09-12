@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/supabase/server";
 
 const steps = [
   {
@@ -18,7 +20,12 @@ const steps = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  // A signed-in user clicking the logo should land in the app, not on the marketing page
+  // with a "Sign in" button implying they were logged out. This is a server component,
+  // so the check happens before render: no flash of the wrong page, no client round trip.
+  if (await getCurrentUser()) redirect("/dashboard");
+
   return (
     <main className="min-h-screen overflow-hidden">
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 lg:px-8">

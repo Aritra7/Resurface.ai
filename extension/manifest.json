@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Resurface.AI",
+  "version": "0.1.0",
+  "description": "Send your Chrome bookmarks and open tabs to Resurface.AI.",
+  "permissions": [
+    "bookmarks",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Resurface.AI"
+  }
+}
