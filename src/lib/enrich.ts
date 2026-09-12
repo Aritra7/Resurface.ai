@@ -16,6 +16,7 @@
  * return nothing and stay link-only.
  */
 import { decodeHtmlEntities } from "./html";
+import { safeFetch } from "./ssrf";
 
 /** Bounded so one slow host cannot stall a batch. */
 const FETCH_TIMEOUT_MS = 12_000;
@@ -43,12 +44,12 @@ function metaTag(html: string, property: string): string | undefined {
 }
 
 async function fetchText(url: string, userAgent: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      redirect: "follow",
+    // safeFetch validates the scheme, hostname and every resolved IP, and re-validates
+    // each redirect hop. A plain fetch here would let an imported URL point the server
+    // at loopback, a private network, or a cloud metadata endpoint.
+    const response = await safeFetch(url, {
+      timeoutMs: FETCH_TIMEOUT_MS,
       headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml" },
     });
     if (!response.ok) return null;
@@ -77,19 +78,18 @@ async function fetchText(url: string, userAgent: string): Promise<string | null>
       }, new Uint8Array()),
     );
   } catch {
+    // Includes SsrfError: a blocked destination is simply un-enrichable, not fatal.
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 /** YouTube oEmbed: no API key, no quota cost, and always public. */
 async function enrichYouTube(url: string): Promise<Enrichment | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
+    // The endpoint is a fixed host we control the shape of, but the user URL travels in
+    // a query parameter, so route it through safeFetch for uniform timeout handling.
     const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
-    const response = await fetch(endpoint, { signal: controller.signal });
+    const response = await safeFetch(endpoint, { timeoutMs: FETCH_TIMEOUT_MS });
     if (!response.ok) return null;
     const data = (await response.json()) as {
       title?: string;
@@ -103,8 +103,6 @@ async function enrichYouTube(url: string): Promise<Enrichment | null> {
     };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

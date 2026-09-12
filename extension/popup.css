@@ -24,6 +24,11 @@ input[type="text"], input:not([type]) {
   background: #fff;
 }
 label { display: block; margin-bottom: 8px; }
+details { margin-bottom: 10px; font-size: 13px; color: #677069; }
+summary { cursor: pointer; padding: 4px 0; }
+input.plain {
+  font-size: 13px; letter-spacing: 0; text-align: left; text-transform: none; margin-top: 6px;
+}
 button {
   width: 100%;
   min-height: 40px;

@@ -12,6 +12,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canonicalize, hostnameOf } from "./canonical";
+import { categorize, matchGoals, type CategoryScore } from "./categorize";
 
 /**
  * Vocabulary fixed by INGESTION_AND_CATEGORIZATION.md section 6.
@@ -43,6 +44,8 @@ export type IngestItem = {
   durationSeconds?: number;
   collection?: string;
   savedAt?: string;
+  /** When the platform published it, distinct from when the user saved it. */
+  publishedAt?: string;
   contentType?: ResourceContentType;
   /** Content type implied by the URL shape, supplied by canonicalize(). */
   contentHint?: string;
@@ -91,6 +94,13 @@ function estimateMinutes(item: IngestItem, contentType: ResourceContentType): nu
   return 5; // article default, per MVP_SCOPE
 }
 
+/** Short evidence string for the urgency explanation the optimizer surfaces. */
+function describeTimeSensitivity(score: number): string | null {
+  if (score >= 0.6) return "Mentions a deadline or a limited window";
+  if (score >= 0.35) return "Refers to recent or dated material";
+  return null;
+}
+
 /**
  * Upserts a batch. Returns counts for the sync_runs row.
  *
@@ -105,7 +115,16 @@ export async function ingestItems(
 ): Promise<IngestResult> {
   if (items.length === 0) return { seen: 0, inserted: 0, skipped: 0 };
 
+  // The user's goals drive goal matching, which carries the largest optimizer weight.
+  const { data: goals } = await supabase
+    .from("goals")
+    .select("id, name")
+    .eq("user_id", userId)
+    .eq("active", true)
+    .returns<Array<{ id: string; name: string }>>();
+
   const rows: Record<string, unknown>[] = [];
+  const pendingGoals: Array<{ externalKey: string; categories: ReturnType<typeof categorize>["categories"] }> = [];
   let skipped = 0;
 
   // Collapse duplicates inside this batch before hitting the database, otherwise
@@ -136,6 +155,17 @@ export async function ingestItems(
     seenKeys.add(urlKey);
 
     const contentType = inferContentType(item, item.contentHint ?? canonical.contentHint);
+    const estimatedMinutes = estimateMinutes(item, contentType);
+
+    const classification = categorize({
+      title: item.title,
+      description: item.description,
+      collection: item.collection,
+      url: item.url,
+      source: item.source,
+      contentType,
+      estimatedMinutes,
+    });
 
     rows.push({
       user_id: userId,
@@ -149,11 +179,26 @@ export async function ingestItems(
       author: item.author?.slice(0, 200) ?? hostnameOf(item.url) ?? null,
       thumbnail_url: item.thumbnailUrl ?? null,
       collection: item.collection?.slice(0, 200) ?? null,
-      estimated_minutes: estimateMinutes(item, contentType),
+      estimated_minutes: estimatedMinutes,
       saved_at: item.savedAt ?? new Date().toISOString(),
       enrichment_status: item.title ? "complete" : "pending",
       connection_id: connectionId ?? null,
+      // Scoring inputs. Left null these silently fall back to 0.5 inside the optimizer,
+      // which makes every item look identical and the ranking meaningless.
+      actionability: classification.actionability,
+      cognitive_effort: classification.cognitiveEffort,
+      time_sensitivity: classification.timeSensitivity,
+      time_sensitivity_reason: describeTimeSensitivity(classification.timeSensitivity),
+      time_sensitivity_confidence: classification.confidence,
+      published_at: item.publishedAt ?? null,
+      // An explicitly imported save IS the user's intent to revisit, so it becomes
+      // eligible immediately. Without this the row stays `unreviewed`, and
+      // /session/new only loads active and snoozed — so nothing imported would ever
+      // reach a session.
+      status: "active",
     });
+
+    pendingGoals.push({ externalKey: idKey, categories: classification.categories });
   }
 
   if (rows.length === 0) return { seen: items.length, inserted: 0, skipped };
@@ -167,7 +212,50 @@ export async function ingestItems(
     skipped += result.skipped;
   }
 
+  await linkGoals(supabase, userId, rows, pendingGoals, goals ?? []);
+
   return { seen: items.length, inserted, skipped };
+}
+
+/**
+ * Writes resource_goals, which carries 0.35 of the optimizer score — the largest single
+ * weight. A resource with no goal row scores zero on relevance no matter how good it is.
+ */
+async function linkGoals(
+  supabase: SupabaseClient,
+  userId: string,
+  rows: Record<string, unknown>[],
+  pending: Array<{ externalKey: string; categories: CategoryScore[] }>,
+  goals: Array<{ id: string; name: string }>,
+): Promise<void> {
+  if (goals.length === 0 || pending.length === 0) return;
+
+  // Resolve the ids the upsert actually produced, keyed the same way rows were built.
+  const { data: saved } = await supabase
+    .from("resources")
+    .select("id, source, external_id")
+    .eq("user_id", userId)
+    .in("external_id", rows.map((row) => row.external_id as string))
+    .returns<Array<{ id: string; source: string; external_id: string }>>();
+
+  const idByKey = new Map((saved ?? []).map((r) => [`${r.source}::${r.external_id}`, r.id]));
+
+  const links: Array<{ resource_id: string; goal_id: string; relevance: number }> = [];
+  for (const entry of pending) {
+    const resourceId = idByKey.get(entry.externalKey);
+    if (!resourceId) continue;
+    for (const match of matchGoals(entry.categories, goals)) {
+      links.push({ resource_id: resourceId, goal_id: match.goalId, relevance: match.relevance });
+    }
+  }
+
+  if (links.length === 0) return;
+
+  for (let i = 0; i < links.length; i += 200) {
+    await supabase
+      .from("resource_goals")
+      .upsert(links.slice(i, i + 200), { onConflict: "resource_id,goal_id" });
+  }
 }
 
 /**

@@ -24,20 +24,35 @@ export async function POST(
   }
 
   const supabase = createServiceClient();
-  const { data: connection } = await supabase
+
+  // Not maybeSingle(): OAuth allows a user to connect two Google accounts, and sync
+  // deliberately picks the newest. maybeSingle() errors on more than one row, and that
+  // error was discarded — so disconnect reported success while deleting nothing.
+  const { data: connections, error: lookupError } = await supabase
     .from("connections")
     .select("id, refresh_token_enc")
     .eq("user_id", user.id)
     .eq("provider", provider)
-    .maybeSingle<{ id: string; refresh_token_enc: string | null }>();
+    .returns<Array<{ id: string; refresh_token_enc: string | null }>>();
 
-  if (!connection) return NextResponse.json({ ok: true, alreadyDisconnected: true });
+  if (lookupError) {
+    console.error("[disconnect] lookup failed:", lookupError);
+    return NextResponse.json({ error: lookupError.message }, { status: 500 });
+  }
 
-  if (provider === "youtube" && connection.refresh_token_enc) {
-    try {
-      await revokeToken(decrypt(connection.refresh_token_enc));
-    } catch (error) {
-      console.warn("[disconnect] upstream revoke failed:", (error as Error).message);
+  if (!connections || connections.length === 0) {
+    return NextResponse.json({ ok: true, alreadyDisconnected: true });
+  }
+
+  // Revoke every token upstream, not just one, or a second grant survives invisibly.
+  if (provider === "youtube") {
+    for (const connection of connections) {
+      if (!connection.refresh_token_enc) continue;
+      try {
+        await revokeToken(decrypt(connection.refresh_token_enc));
+      } catch (error) {
+        console.warn("[disconnect] upstream revoke failed:", (error as Error).message);
+      }
     }
   }
 
@@ -46,6 +61,10 @@ export async function POST(
       .eq("user_id", user.id).is("revoked_at", null);
   }
 
-  await supabase.from("connections").delete().eq("id", connection.id);
-  return NextResponse.json({ ok: true });
+  await supabase
+    .from("connections")
+    .delete()
+    .in("id", connections.map((connection) => connection.id));
+
+  return NextResponse.json({ ok: true, disconnected: connections.length });
 }

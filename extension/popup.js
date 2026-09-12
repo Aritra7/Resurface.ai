@@ -5,7 +5,17 @@
  * The token is the only credential; there is no Supabase session inside an extension.
  */
 
-const API = "http://localhost:3000";
+/**
+ * API origin. Defaults to local development and is overridable at pair time, so the
+ * same unpacked build works against a deployed app without editing extension files.
+ * Any origin used here must also appear in host_permissions in manifest.json.
+ */
+const DEFAULT_API = "http://localhost:3000";
+
+async function getApi() {
+  const { apiOrigin } = await chrome.storage.local.get("apiOrigin");
+  return (apiOrigin || DEFAULT_API).replace(/\/+$/, "");
+}
 
 const $ = (id) => document.getElementById(id);
 const status = $("status");
@@ -82,7 +92,10 @@ $("pair-btn").addEventListener("click", async () => {
   setStatus("Pairing…");
 
   try {
-    const response = await fetch(`${API}/api/extension/pair`, {
+    const api = $("api-origin").value.trim() || DEFAULT_API;
+    await chrome.storage.local.set({ apiOrigin: api.replace(/\/+$/, "") });
+
+    const response = await fetch(`${api.replace(/\/+$/, "")}/api/extension/pair`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, label: "Chrome" }),
@@ -94,10 +107,13 @@ $("pair-btn").addEventListener("click", async () => {
     } else {
       await chrome.storage.local.set({ token: body.token });
       setStatus("Paired. You can send your bookmarks now.", "ok");
-      await render();
+      await (async () => {
+  $("api-origin").value = await getApi();
+  await render();
+})();
     }
   } catch {
-    setStatus("Could not reach Resurface. Is it running?", "error");
+    setStatus("Could not reach Resurface. Check the address and that it is running.", "error");
   }
 
   $("pair-btn").disabled = false;
@@ -105,7 +121,10 @@ $("pair-btn").addEventListener("click", async () => {
 
 $("sync-btn").addEventListener("click", async () => {
   const token = await getToken();
-  if (!token) return render();
+  if (!token) return (async () => {
+  $("api-origin").value = await getApi();
+  await render();
+})();
 
   $("sync-btn").disabled = true;
   setStatus("Collecting…");
@@ -119,7 +138,7 @@ $("sync-btn").addEventListener("click", async () => {
     }
 
     setStatus(`Sending ${items.length}…`);
-    const response = await fetch(`${API}/api/extension/items`, {
+    const response = await fetch(`${await getApi()}/api/extension/items`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ items }),
@@ -130,7 +149,10 @@ $("sync-btn").addEventListener("click", async () => {
       // The token was revoked server-side; drop it and return to pairing.
       await chrome.storage.local.remove("token");
       setStatus(body.error || "This browser is no longer paired.", "error");
-      await render();
+      await (async () => {
+  $("api-origin").value = await getApi();
+  await render();
+})();
     } else if (!response.ok) {
       setStatus(body.error || "Send failed.", "error");
     } else {
@@ -146,7 +168,13 @@ $("sync-btn").addEventListener("click", async () => {
 $("unpair-btn").addEventListener("click", async () => {
   await chrome.storage.local.remove("token");
   setStatus("Unpaired.", "ok");
+  await (async () => {
+  $("api-origin").value = await getApi();
   await render();
+})();
 });
 
-render();
+(async () => {
+  $("api-origin").value = await getApi();
+  await render();
+})();

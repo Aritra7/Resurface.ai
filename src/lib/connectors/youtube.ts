@@ -301,13 +301,22 @@ export async function fetchSavedVideos(
   }
 
   if (includePlaylists && all.length < maxTotal) {
-    const playlists: PlaylistsResponse = await api("playlists", accessToken, {
-      part: "snippet,contentDetails",
-      mine: "true",
-      maxResults: "50",
-    });
+    // playlists.list caps at 50 per page, so page through it. Without this an account
+    // with more than 50 playlists silently loses everything past the first page.
+    const allPlaylists: PlaylistsResponse["items"] = [];
+    let playlistPageToken: string | undefined;
+    do {
+      const page: PlaylistsResponse = await api("playlists", accessToken, {
+        part: "snippet,contentDetails",
+        mine: "true",
+        maxResults: "50",
+        ...(playlistPageToken ? { pageToken: playlistPageToken } : {}),
+      });
+      allPlaylists.push(...(page.items ?? []));
+      playlistPageToken = page.nextPageToken;
+    } while (playlistPageToken && allPlaylists.length < 200);
 
-    for (const playlist of playlists.items ?? []) {
+    for (const playlist of allPlaylists) {
       if (all.length >= maxTotal) break;
       if (playlist.contentDetails.itemCount === 0) continue;
       try {
