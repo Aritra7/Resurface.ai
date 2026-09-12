@@ -25,7 +25,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     async function load() {
       await Promise.resolve();
       if (!active) return;
-      setSession(loadStoredSession(id));
+      const stored = loadStoredSession(id);
+      setSession(stored);
+      if (stored) {
+        const nextIndex = stored.currentIndex ?? stored.items.findIndex((item) => !stored.outcomes[item.resource.id]);
+        setCurrentIndex(nextIndex < 0 ? stored.items.length : nextIndex);
+      }
       setLoading(false);
     }
 
@@ -60,6 +65,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     const updated = {
       ...session,
       outcomes: { ...session.outcomes, [item.resource.id]: outcome },
+      currentIndex: currentIndex + 1,
     };
     saveStoredSession(updated);
     setSession(updated);
@@ -94,7 +100,15 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   if (complete) return <SessionSummary session={session} warning={warning} />;
 
   const current = session.items[currentIndex];
-  const progress = (currentIndex / session.items.length) * 100;
+  const progress = (Object.keys(session.outcomes).length / session.items.length) * 100;
+  const loadedSession = session;
+
+  function moveTo(index: number) {
+    const bounded = Math.max(0, Math.min(index, loadedSession.items.length - 1));
+    setCurrentIndex(bounded);
+    saveStoredSession({ ...loadedSession, currentIndex: bounded });
+    setItemStartedAt(Date.now());
+  }
 
   return (
     <main className="min-h-screen px-5 py-8 sm:px-8">
@@ -108,6 +122,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         </div>
 
         <section className="mt-10 rounded-[2rem] border border-[var(--border)] bg-white p-6 shadow-[0_20px_60px_rgba(40,65,46,0.08)] sm:p-10">
+          <div className="mb-6 flex items-center justify-between gap-3"><button className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-40" disabled={currentIndex === 0} onClick={() => moveTo(currentIndex - 1)} type="button">← Previous</button><span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{current.resource.topic ?? current.resource.section ?? "Learning path"}</span><button className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-40" disabled={currentIndex === session.items.length - 1} onClick={() => moveTo(currentIndex + 1)} type="button">Next →</button></div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="rounded-full bg-[#edf0e8] px-3 py-1 font-medium capitalize">{current.resource.source}</span>
             <span className="text-[var(--muted)]">{current.resource.estimatedMinutes} min · {formatContentType(current.resource.contentType)}</span>
@@ -137,6 +152,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               <OutcomeButton disabled={pending} label="Snooze 3 days" onClick={() => chooseOutcome("snoozed")} />
               <OutcomeButton disabled={pending} label="Archive" onClick={() => chooseOutcome("archived")} />
             </div>
+            <button className="mt-4 w-full text-sm font-semibold text-[var(--muted)] hover:text-[var(--foreground)]" disabled={pending} onClick={() => chooseOutcome("skipped")} type="button">Skip this recommendation and re-curate later</button>
           </div>
           {warning && <p className="mt-5 rounded-xl bg-[#fff4db] px-4 py-3 text-sm">{warning}</p>}
         </section>

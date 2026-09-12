@@ -30,6 +30,9 @@ export type RecommendationResource = {
   status: ResourceStatus;
   snoozedUntil?: string | null;
   goalMatches: GoalMatch[];
+  section?: string;
+  objective?: string;
+  topic?: string;
 };
 
 export type RecommendationContext = {

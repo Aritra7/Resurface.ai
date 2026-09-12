@@ -48,22 +48,22 @@ export default function Home() {
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Link
               className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--accent)] px-6 py-3 font-semibold text-white transition hover:bg-[var(--accent-hover)]"
-              href="/login"
+              href="/session/new"
             >
-              Get started
+              Build my session
             </Link>
             <Link
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--border)] bg-white px-6 py-3 font-semibold transition hover:border-[var(--accent)]"
-              href="/demo"
+              href="/login"
             >
-              Try with sample saves
+              Sign in
             </Link>
           </div>
         </div>
 
         <div className="relative mx-auto w-full max-w-md">
           <div className="absolute -left-16 -top-14 h-40 w-40 rounded-full bg-[#d8edcf] blur-3xl" />
-          <div className="relative rounded-[2rem] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_28px_80px_rgba(40,65,46,0.12)]">
+          <div className="relative rounded-[2rem] border-2 border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_8px_0_#dce6d8,0_28px_80px_rgba(40,65,46,0.12)]">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
