@@ -6,11 +6,11 @@
  */
 
 /**
- * API origin. Defaults to local development and is overridable at pair time, so the
- * same unpacked build works against a deployed app without editing extension files.
+ * API origin. Defaults to production and is overridable at pair time, so the same
+ * unpacked build can still target localhost during development.
  * Any origin used here must also appear in host_permissions in manifest.json.
  */
-const DEFAULT_API = "http://localhost:3000";
+const DEFAULT_API = "https://resurface-ai.vercel.app";
 
 async function getApi() {
   const { apiOrigin } = await chrome.storage.local.get("apiOrigin");

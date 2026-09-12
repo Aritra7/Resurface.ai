@@ -18,4 +18,7 @@ From the repository root:
 pnpm extension:package
 ```
 
-Before a production package, add the exact deployed HTTPS origin to `host_permissions` in `manifest.json`, increment the extension version, reload it in Chrome, and repeat the pairing/import test.
+The checked-in build defaults to `https://resurface-ai.vercel.app` and grants only
+that production origin plus localhost. If the production domain changes, update both
+`DEFAULT_API` in `popup.js` and `host_permissions` in `manifest.json`, increment the
+extension version, reload it in Chrome, and repeat the pairing/import test.

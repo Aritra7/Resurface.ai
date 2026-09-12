@@ -10,7 +10,7 @@
   ],
   "host_permissions": [
     "http://localhost:3000/*",
-    "https://*.vercel.app/*"
+    "https://resurface-ai.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup.html",
