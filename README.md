@@ -50,3 +50,4 @@ pnpm build
 - [Complete product flow](docs/PRODUCT_FLOW.md)
 - [Web MVP scope](docs/MVP_SCOPE.md)
 - [Onboarding UX recommendations](docs/ONBOARDING_UX.md)
+- [Resource ingestion and categorization specification](docs/INGESTION_AND_CATEGORIZATION.md)
