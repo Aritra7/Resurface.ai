@@ -10,7 +10,7 @@ const ITEMS = [
   { href: "/progress", icon: "◉", label: "Progress" },
 ] as const;
 
-const APP_PREFIXES = ["/dashboard", "/path", "/resources", "/progress", "/connections", "/add", "/session"];
+const APP_PREFIXES = ["/dashboard", "/path", "/resources", "/progress", "/connections", "/add", "/settings", "/session"];
 
 export function AppBottomNav() {
   const pathname = usePathname();

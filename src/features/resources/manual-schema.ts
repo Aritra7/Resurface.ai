@@ -43,3 +43,16 @@ export const bookmarkImportSchema = z.object({
     savedAt: z.string().datetime().optional(),
   })).min(1).max(100),
 });
+
+export const updateResourceSchema = z.object({
+  title: z.string().trim().min(1).max(500),
+  userNote: z.string().trim().max(500).default(""),
+  contentType: z.enum(resourceContentTypes),
+  estimatedMinutes: z.number().int().min(1).max(240),
+  categories: z.array(z.enum(CATEGORIES)).max(3),
+  goalMatches: z.array(z.object({ goalId: z.string().uuid(), relevance: z.number().min(0).max(1) })).max(10),
+  cognitiveEffort: z.number().min(0).max(1),
+  actionability: z.number().min(0).max(1),
+  timeSensitivity: z.number().min(0).max(1),
+  status: z.enum(["active", "completed", "archived"]),
+});
