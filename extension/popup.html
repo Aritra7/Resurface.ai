@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <h1>Resurface<span>.AI</span></h1>
+
+    <section id="pair-view" hidden>
+      <p class="muted">
+        Open Resurface, go to <strong>Connections</strong>, and click
+        <strong>Connect Chrome</strong> to get a code.
+      </p>
+      <input id="code" maxlength="8" placeholder="ABCD2345" autocomplete="off" spellcheck="false" />
+      <button id="pair-btn">Pair this browser</button>
+    </section>
+
+    <section id="sync-view" hidden>
+      <p class="muted">This browser is paired with Resurface.</p>
+      <label><input type="checkbox" id="inc-bookmarks" checked /> Bookmarks</label>
+      <label><input type="checkbox" id="inc-tabs" checked /> Open tabs</label>
+      <button id="sync-btn">Send to Resurface</button>
+      <button id="unpair-btn" class="secondary">Unpair</button>
+    </section>
+
+    <p id="status" aria-live="polite"></p>
+    <script src="popup.js"></script>
+  </body>
+</html>

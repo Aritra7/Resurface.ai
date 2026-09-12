@@ -44,6 +44,7 @@ function ConnectionsInner() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [pairingCode, setPairingCode] = useState("");
 
   const load = useCallback(async () => {
     const response = await fetch("/api/connections");
@@ -146,6 +147,21 @@ function ConnectionsInner() {
     load();
   }
 
+  async function createPairingCode() {
+    setBusy("chrome");
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/extension/code", { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) setError(body.error ?? "Could not create a pairing code.");
+      else setPairingCode(body.code);
+    } catch {
+      setError("Could not reach the server.");
+    }
+    setBusy(null);
+  }
+
   async function disconnect(provider: string) {
     if (!confirm(`Disconnect ${provider}? Your imported saves are kept.`)) return;
     setBusy(provider);
@@ -165,6 +181,7 @@ function ConnectionsInner() {
   }
 
   const youtube = data?.connections.find((c) => c.provider === "youtube");
+  const chrome = data?.connections.find((c) => c.provider === "browser_bookmark");
 
   return (
     <main className="min-h-screen px-5 py-8 sm:px-8">
@@ -273,18 +290,63 @@ function ConnectionsInner() {
             )}
           </article>
 
-          {/* Chrome - not yet built */}
-          <article className="rounded-[2rem] border border-dashed border-[var(--border)] bg-white/60 p-7">
+          {/* Chrome */}
+          <article className="rounded-[2rem] border border-[var(--border)] bg-white p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-semibold">Chrome bookmarks &amp; tabs</h2>
                 <p className="mt-2 max-w-md leading-7 text-[var(--muted)]">
-                  A browser extension imports your bookmark folders and open tabs.
+                  A browser extension sends your bookmark folders and open tabs. Folder names
+                  become topic labels.
                 </p>
               </div>
-              <span className="rounded-full bg-[#edf0e8] px-3 py-1.5 text-sm font-medium text-[var(--muted)]">
-                Coming next
-              </span>
+              <StatusPill connected={Boolean(chrome)} status={chrome?.status} />
+            </div>
+
+            {chrome && (
+              <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-5 text-sm sm:grid-cols-3">
+                <Stat label="Browser" value={chrome.external_account_label ?? "Chrome"} />
+                <Stat label="Links imported" value={String(data?.counts.browser_bookmark ?? 0)} />
+                <Stat
+                  label="Last sync"
+                  value={chrome.last_sync_at ? new Date(chrome.last_sync_at).toLocaleString() : "Never"}
+                />
+              </dl>
+            )}
+
+            <div className="mt-6">
+              <button
+                className="min-h-12 rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+                disabled={busy === "chrome"}
+                onClick={createPairingCode}
+                type="button"
+              >
+                {busy === "chrome" ? "Generating…" : chrome ? "Pair another browser" : "Connect Chrome"}
+              </button>
+
+              {pairingCode && (
+                <div className="mt-5 rounded-2xl border border-[var(--accent)] bg-[#e8f2ea] px-5 py-4">
+                  <p className="text-sm text-[var(--muted)]">
+                    Enter this code in the Resurface extension popup. It expires in 10 minutes.
+                  </p>
+                  <p className="mt-2 font-mono text-3xl font-semibold tracking-[0.3em]">
+                    {pairingCode}
+                  </p>
+                </div>
+              )}
+
+              <details className="mt-5 text-sm leading-6 text-[var(--muted)]">
+                <summary className="cursor-pointer font-medium text-[var(--foreground)]">
+                  First time? Install the extension
+                </summary>
+                <ol className="mt-3 list-decimal space-y-1 pl-5">
+                  <li>Open <code>chrome://extensions</code></li>
+                  <li>Turn on <strong>Developer mode</strong> (top right)</li>
+                  <li>Click <strong>Load unpacked</strong></li>
+                  <li>Select the <code>extension</code> folder in this project</li>
+                  <li>Click <strong>Connect Chrome</strong> above, then enter the code in the popup</li>
+                </ol>
+              </details>
             </div>
           </article>
 
