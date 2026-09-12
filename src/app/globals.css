@@ -30,3 +30,48 @@ textarea,
 select {
   outline-color: var(--accent);
 }
+
+.app-bottom-nav {
+  position: fixed;
+  z-index: 40;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  background: rgb(255 255 255 / 94%);
+  padding: 0.55rem 0.75rem calc(0.55rem + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 24px rgb(40 72 44 / 8%);
+  backdrop-filter: blur(12px);
+  display: grid;
+}
+
+.app-bottom-nav a {
+  display: grid;
+  justify-items: center;
+  gap: 0.15rem;
+  color: #879089;
+  text-decoration: none;
+}
+
+.app-bottom-nav a span {
+  display: grid;
+  height: 1.75rem;
+  min-width: 2.1rem;
+  place-items: center;
+  border-radius: 0.7rem;
+  font-weight: 700;
+}
+
+.app-bottom-nav a small {
+  font-size: 0.65rem;
+  font-weight: 650;
+}
+
+.app-bottom-nav a.active {
+  color: var(--accent);
+}
+
+.app-bottom-nav a.active span {
+  background: #e8f3e4;
+}

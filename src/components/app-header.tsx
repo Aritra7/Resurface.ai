@@ -11,7 +11,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export function AppHeader({ current }: { current?: "dashboard" | "connections" | "add" }) {
+type AppRoute = "dashboard" | "resources" | "path" | "progress" | "connections" | "add";
+
+const PRIMARY_LINKS: Array<{ href: string; label: string; route: AppRoute }> = [
+  { href: "/dashboard", label: "Dashboard", route: "dashboard" },
+  { href: "/resources", label: "Resources", route: "resources" },
+  { href: "/path", label: "My path", route: "path" },
+  { href: "/progress", label: "Progress", route: "progress" },
+];
+
+export function AppHeader({ current }: { current?: AppRoute }) {
   const router = useRouter();
 
   async function signOut() {
@@ -24,21 +33,16 @@ export function AppHeader({ current }: { current?: "dashboard" | "connections" |
       <Link className="text-lg font-semibold" href="/dashboard">
         Resurface<span className="text-[var(--accent)]">.AI</span>
       </Link>
-      <nav className="flex items-center gap-5">
+      <nav className="hidden items-center gap-5 md:flex">
+        {PRIMARY_LINKS.filter((link) => link.route !== current).map((link) => (
+          <Link className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]" href={link.href} key={link.href}>{link.label}</Link>
+        ))}
         {current !== "add" && (
           <Link
             className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
             href="/add"
           >
             Add a save
-          </Link>
-        )}
-        {current !== "dashboard" && (
-          <Link
-            className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
-            href="/dashboard"
-          >
-            Dashboard
           </Link>
         )}
         {current !== "connections" && (
