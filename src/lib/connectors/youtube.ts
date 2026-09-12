@@ -256,6 +256,8 @@ type PlaylistsResponse = {
 export type SyncOptions = {
   includeLikes?: boolean;
   includePlaylists?: boolean;
+  /** Ceiling for the liked-videos playlist specifically. */
+  maxLikes?: number;
   maxPerPlaylist?: number;
   maxTotal?: number;
 };
@@ -265,22 +267,26 @@ export async function fetchSavedVideos(
   accessToken: string,
   options: SyncOptions = {},
 ): Promise<YouTubeVideo[]> {
-  // Generous ceilings: a real account here has 1,250+ liked videos, and the whole point
-  // is that the optimizer sees the actual backlog. At 1 quota unit per 50 items, even
-  // 2,000 videos costs ~40 units of playlistItems plus ~40 of videos against a 10,000
-  // daily budget, so the limiting factor is wall-clock time, not quota.
+  // Generous ceilings: the optimizer is only as good as the backlog it can see, and a
+  // real account here has 1,250+ liked videos. At 1 quota unit per 50 items, 5,000
+  // videos costs ~100 units of playlistItems plus ~100 of videos against a 10,000/day
+  // budget, so wall-clock time is the limiting factor, not quota.
+  //
+  // Liked videos get their own ceiling because they are the primary saved signal and
+  // should never be truncated to make room for an ordinary playlist.
   const {
     includeLikes = true,
     includePlaylists = true,
+    maxLikes = 5000,
     maxPerPlaylist = 1000,
-    maxTotal = 2000,
+    maxTotal = 5000,
   } = options;
 
   const all: YouTubeVideo[] = [];
 
   if (includeLikes) {
     try {
-      all.push(...(await fetchPlaylistItems(accessToken, "LL", "Liked videos", maxPerPlaylist)));
+      all.push(...(await fetchPlaylistItems(accessToken, "LL", "Liked videos", maxLikes)));
     } catch (error) {
       // An empty or disabled likes playlist should not abort the whole sync.
       console.warn("[youtube] liked videos unavailable:", (error as Error).message);
