@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/lib/use-session";
 
 type Profile = {
   display_name: string;
@@ -17,27 +18,45 @@ type Goal = {
   is_primary: boolean;
 };
 
+type ConnectionStatus = {
+  provider: string;
+  external_account_label: string | null;
+  status: string;
+  last_sync_at: string | null;
+};
+
+/** Human labels for the providers, so the UI never prints a raw enum value. */
+const PROVIDER_LABEL: Record<string, string> = {
+  youtube: "YouTube",
+  browser_bookmark: "Chrome",
+  instagram: "Instagram",
+};
+
 export default function DashboardPage() {
   const router = useRouter();
+  // Keeps the page in step with token refreshes and sign-outs in other tabs, instead of
+  // checking auth once and redirecting the moment a refresh lands.
+  const { user, loading: sessionLoading } = useSession();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [activeResourceCount, setActiveResourceCount] = useState(0);
+  const [connections, setConnections] = useState<ConnectionStatus[]>([]);
+  const [sourceCounts, setSourceCounts] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
 
+    if (sessionLoading) return;
+    if (!user) return; // useSession already redirected.
+
     async function loadDashboard() {
       const supabase = createClient();
-      const { data: authData } = await supabase.auth.getUser();
+      const authData = { user: user! };
 
-      if (!authData.user) {
-        router.replace("/login");
-        return;
-      }
-
-      const [profileResult, goalsResult, resourcesResult] = await Promise.all([
+      const [profileResult, goalsResult, resourcesResult, connectionsResult, sourcesResult] =
+        await Promise.all([
         supabase
           .from("profiles")
           .select("display_name, default_session_minutes, onboarding_completed")
@@ -52,6 +71,17 @@ export default function DashboardPage() {
         supabase
           .from("resources")
           .select("id", { count: "exact", head: true })
+          .eq("user_id", authData.user.id)
+          .eq("status", "active"),
+        // connection_status is the view that excludes every token column, so nothing
+        // sensitive can reach the browser even by accident.
+        supabase
+          .from("connection_status")
+          .select("provider, external_account_label, status, last_sync_at")
+          .eq("user_id", authData.user.id),
+        supabase
+          .from("resources")
+          .select("source")
           .eq("user_id", authData.user.id)
           .eq("status", "active"),
       ]);
@@ -69,9 +99,17 @@ export default function DashboardPage() {
         return;
       }
 
+      const counts: Record<string, number> = {};
+      for (const row of sourcesResult.data ?? []) {
+        const source = (row as { source: string }).source;
+        counts[source] = (counts[source] ?? 0) + 1;
+      }
+
       setProfile(profileResult.data);
       setGoals(goalsResult.data ?? []);
       setActiveResourceCount(resourcesResult.count ?? 0);
+      setConnections(connectionsResult.data ?? []);
+      setSourceCounts(counts);
       setLoading(false);
     }
 
@@ -79,14 +117,14 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, user, sessionLoading]);
 
   async function signOut() {
     await createClient().auth.signOut();
     router.replace("/");
   }
 
-  if (loading) {
+  if (sessionLoading || loading) {
     return <main className="flex min-h-screen items-center justify-center">Loading your dashboard…</main>;
   }
 
@@ -159,20 +197,81 @@ export default function DashboardPage() {
           </article>
         </section>
 
-        <section className="mt-8 rounded-[2rem] border border-dashed border-[var(--border)] bg-white/60 p-8 text-center">
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{activeResourceCount} active {activeResourceCount === 1 ? "save" : "saves"}</p>
-          <h2 className="mt-2 text-2xl font-semibold">{activeResourceCount > 0 ? "Your backlog is ready for a session" : "Bring in what you already saved"}</h2>
-          <p className="mx-auto mt-3 max-w-xl leading-7 text-[var(--muted)]">
-            {activeResourceCount > 0
-              ? "Resurface will use your confirmed resources, goal matches, and time estimates."
-              : "Connect YouTube, Chrome, or Instagram to import saves you already made, with their real durations. Sample saves work too."}
-          </p>
-          <Link
-            className="mt-6 inline-flex min-h-12 items-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)]"
-            href="/connections"
-          >
-            {activeResourceCount > 0 ? "Manage connections" : "Connect your accounts"}
-          </Link>
+        <section className="mt-8 rounded-[2rem] border border-[var(--border)] bg-white p-7">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">
+                Connected sources
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold">
+                {activeResourceCount} {activeResourceCount === 1 ? "save" : "saves"} ready
+              </h2>
+            </div>
+            <Link
+              className="text-sm font-medium text-[var(--accent)] hover:underline"
+              href="/connections"
+            >
+              Manage connections
+            </Link>
+          </div>
+
+          {connections.length > 0 ? (
+            <ul className="mt-6 grid gap-3 sm:grid-cols-3">
+              {connections.map((connection) => {
+                const count = sourceCounts[connection.provider] ?? 0;
+                const broken = connection.status === "error" || connection.status === "expired";
+                return (
+                  <li
+                    className="rounded-2xl border border-[var(--border)] p-4"
+                    key={connection.provider}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold">
+                        {PROVIDER_LABEL[connection.provider] ?? connection.provider}
+                      </p>
+                      <span
+                        aria-label={broken ? "Needs attention" : "Connected"}
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                          broken ? "bg-[#9b4444]" : "bg-[var(--accent)]"
+                        }`}
+                      />
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold">{count}</p>
+                    <p className="text-sm text-[var(--muted)]">
+                      {connection.external_account_label ?? "Connected"}
+                    </p>
+                    {connection.last_sync_at && (
+                      <p className="mt-2 text-xs text-[var(--muted)]">
+                        Synced {new Date(connection.last_sync_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="mt-4 leading-7 text-[var(--muted)]">
+              Nothing connected yet. Bring in saves from YouTube, Chrome, or Instagram so your
+              first session has something to choose from.
+            </p>
+          )}
+
+          {/* Instagram is an import, not a connection, so it has no connections row. */}
+          {(sourceCounts.instagram ?? 0) > 0 &&
+            !connections.some((connection) => connection.provider === "instagram") && (
+              <p className="mt-4 text-sm text-[var(--muted)]">
+                Plus {sourceCounts.instagram} imported from Instagram.
+              </p>
+            )}
+
+          {activeResourceCount === 0 && (
+            <Link
+              className="mt-6 inline-flex min-h-12 items-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)]"
+              href="/connections"
+            >
+              Connect your accounts
+            </Link>
+          )}
         </section>
       </div>
     </main>

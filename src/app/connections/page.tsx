@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/lib/use-session";
 
 type Connection = {
   id: string;
@@ -39,6 +40,8 @@ const ERROR_COPY: Record<string, string> = {
 function ConnectionsInner() {
   const router = useRouter();
   const params = useSearchParams();
+  // Without this the page redirects to /login whenever a token refresh lands mid-visit.
+  const { user, loading: sessionLoading } = useSession();
 
   const [data, setData] = useState<ConnectionsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,6 +61,8 @@ function ConnectionsInner() {
   }, [router]);
 
   useEffect(() => {
+    if (sessionLoading || !user) return;
+
     // Deferred rather than called synchronously: React 19 flags a synchronous setState
     // in an effect body because it cascades renders. The fetch resolving later is what
     // actually updates state, and the guard drops a response that arrives post-unmount.
@@ -77,7 +82,7 @@ function ConnectionsInner() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, user, sessionLoading]);
 
   // Derived from the URL rather than copied into state, so the redirect message and any
   // message set by a later action (sync, disconnect) cannot fight over the same slot.
@@ -209,7 +214,7 @@ function ConnectionsInner() {
     router.replace("/");
   }
 
-  if (loading) {
+  if (sessionLoading || loading) {
     return <main className="flex min-h-screen items-center justify-center">Loading your connections…</main>;
   }
 
