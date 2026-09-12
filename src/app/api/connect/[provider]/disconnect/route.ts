@@ -19,7 +19,7 @@ export async function POST(
 
   // Route params are async in Next.js 16.
   const { provider } = await context.params;
-  if (provider !== "youtube" && provider !== "chrome") {
+  if (provider !== "youtube" && provider !== "browser_bookmark") {
     return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
   }
 
@@ -41,7 +41,7 @@ export async function POST(
     }
   }
 
-  if (provider === "chrome") {
+  if (provider === "browser_bookmark") {
     await supabase.from("extension_tokens").update({ revoked_at: new Date().toISOString() })
       .eq("user_id", user.id).is("revoked_at", null);
   }

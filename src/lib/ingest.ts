@@ -13,9 +13,28 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canonicalize, hostnameOf } from "./canonical";
 
+/**
+ * Vocabulary fixed by INGESTION_AND_CATEGORIZATION.md section 6.
+ * Chrome bookmarks are `browser_bookmark`, not `chrome`.
+ */
+export type ResourceSource =
+  | "instagram"
+  | "youtube"
+  | "gmail"
+  | "browser_bookmark"
+  | "web";
+
+export type ResourceContentType =
+  | "short_video"
+  | "video"
+  | "social_post"
+  | "article"
+  | "newsletter"
+  | "other";
+
 export type IngestItem = {
   url: string;
-  source: "youtube" | "chrome" | "instagram" | "web";
+  source: ResourceSource;
   externalId?: string;
   title?: string;
   description?: string;
@@ -24,7 +43,9 @@ export type IngestItem = {
   durationSeconds?: number;
   collection?: string;
   savedAt?: string;
-  contentType?: string;
+  contentType?: ResourceContentType;
+  /** Content type implied by the URL shape, supplied by canonicalize(). */
+  contentHint?: string;
 };
 
 export type IngestResult = {
@@ -33,11 +54,19 @@ export type IngestResult = {
   skipped: number;
 };
 
-/** Content-type defaults per PRODUCT_FLOW §4: short video, video, or article. */
-function inferContentType(item: IngestItem): string {
+/**
+ * Content type per INGESTION_AND_CATEGORIZATION.md 5.1 and 5.2.
+ *
+ * Instagram splits on URL shape (/reel/ is short_video, /p/ is social_post), so the
+ * hint derived during canonicalization outranks any source-level default.
+ */
+function inferContentType(item: IngestItem, contentHint?: string): ResourceContentType {
   if (item.contentType) return item.contentType;
+  if (contentHint) return contentHint as ResourceContentType;
+
   if (item.source === "instagram") return "short_video";
   if (item.source === "youtube") {
+    // Contract 5.2: Shorts are short_video, everything else is video.
     if (item.durationSeconds && item.durationSeconds > 0 && item.durationSeconds <= 90) {
       return "short_video";
     }
@@ -50,11 +79,14 @@ function inferContentType(item: IngestItem): string {
  * Estimated minutes drives the whole optimizer, so never leave it null.
  * Real duration when we have it; a documented type default when we do not.
  */
-function estimateMinutes(item: IngestItem, contentType: string): number {
+function estimateMinutes(item: IngestItem, contentType: ResourceContentType): number {
   if (item.durationSeconds && item.durationSeconds > 0) {
-    return Math.max(1, Math.round(item.durationSeconds / 60));
+    // Contract 5.2: whole minutes, minimum one. Ceil rather than round, because
+    // under-estimating duration overfills a time-budgeted session.
+    return Math.max(1, Math.ceil(item.durationSeconds / 60));
   }
-  if (contentType === "short_video") return 1;
+  if (contentType === "short_video") return 1; // contract 5.1 Reel default
+  if (contentType === "social_post") return 1;
   if (contentType === "video") return 8;
   return 5; // article default, per MVP_SCOPE
 }
@@ -95,7 +127,7 @@ export async function ingestItems(
     }
     seenKeys.add(key);
 
-    const contentType = inferContentType(item);
+    const contentType = inferContentType(item, item.contentHint ?? canonical.contentHint);
 
     rows.push({
       user_id: userId,

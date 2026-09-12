@@ -25,7 +25,7 @@ create unique index if not exists resources_user_source_external_unique
 create table if not exists public.connections (
   id                     uuid primary key default gen_random_uuid(),
   user_id                uuid not null references auth.users(id) on delete cascade,
-  provider               text not null check (provider in ('youtube', 'chrome')),
+  provider               text not null check (provider in ('youtube', 'browser_bookmark')),
   external_account_id    text,
   external_account_label text,
   access_token_enc       text,

@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local ingestion fixtures (may contain personal saved-content URLs)
+/fixtures

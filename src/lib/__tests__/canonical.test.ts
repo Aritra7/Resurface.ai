@@ -17,7 +17,7 @@ describe("canonicalize - YouTube", () => {
 
     const canonical = shapes.map((url) => canonicalize(url)?.canonicalUrl);
     expect(new Set(canonical).size).toBe(1);
-    expect(canonical[0]).toBe("https://youtube.com/watch?v=dQw4w9WgXcQ");
+    expect(canonical[0]).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   });
 
   it("extracts the video id as externalId", () => {
@@ -39,18 +39,26 @@ describe("canonicalize - YouTube", () => {
 });
 
 describe("canonicalize - Instagram", () => {
-  it("collapses reel, reels, p and tv paths for one shortcode", () => {
+  it("treats /reels/ as an alias of /reel/ and strips tracking", () => {
     const shapes = [
       "https://www.instagram.com/reel/ABC123xyz/",
       "https://instagram.com/reels/ABC123xyz/",
-      "https://www.instagram.com/p/ABC123xyz/",
-      "https://www.instagram.com/tv/ABC123xyz/",
       "https://www.instagram.com/reel/ABC123xyz/?igsh=trackingjunk",
+      "http://www.instagram.com/reel/ABC123xyz",
     ];
 
     const canonical = shapes.map((url) => canonicalize(url)?.canonicalUrl);
     expect(new Set(canonical).size).toBe(1);
-    expect(canonical[0]).toBe("https://instagram.com/p/ABC123xyz");
+    expect(canonical[0]).toBe("https://www.instagram.com/reel/ABC123xyz/");
+  });
+
+  it("keeps /reel/ and /p/ distinct because content_type differs", () => {
+    // Per INGESTION_AND_CATEGORIZATION.md 5.1: /reel/ is short_video, /p/ is social_post.
+    const reel = canonicalize("https://www.instagram.com/reel/ABC123xyz/");
+    const post = canonicalize("https://www.instagram.com/p/ABC123xyz/");
+    expect(reel?.canonicalUrl).not.toBe(post?.canonicalUrl);
+    expect(reel?.contentHint).toBe("short_video");
+    expect(post?.contentHint).toBe("social_post");
   });
 
   it("extracts the shortcode", () => {

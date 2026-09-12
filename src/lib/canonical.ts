@@ -22,6 +22,8 @@ export type CanonicalResult = {
   externalId?: string;
   /** Detected platform, or "web". */
   platform: "youtube" | "instagram" | "reddit" | "web";
+  /** Content type implied by the URL shape alone, before any metadata fetch. */
+  contentHint?: string;
 };
 
 export function canonicalize(input: string): CanonicalResult | null {
@@ -81,7 +83,8 @@ function canonicalizeYouTube(url: URL): CanonicalResult | null {
   }
 
   return {
-    canonicalUrl: `https://youtube.com/watch?v=${videoId}`,
+    // Contract (INGESTION_AND_CATEGORIZATION.md §7) mandates the www form.
+    canonicalUrl: `https://www.youtube.com/watch?v=${videoId}`,
     externalId: videoId,
     platform: "youtube",
   };
@@ -97,12 +100,19 @@ function canonicalizeInstagram(url: URL): CanonicalResult | null {
     return { canonicalUrl: stripTrailingSlash(url.toString()), platform: "instagram" };
   }
 
+  const kind = match[1];
   const shortcode = match[2];
-  // Normalise every variant to /p/, so a Reel saved twice under different paths dedupes.
+
+  // The contract distinguishes /reel/ (short_video) from /p/ (social_post), so unlike
+  // YouTube we must NOT collapse the two — the path segment carries content-type meaning.
+  // "reels" is only ever an alias for "reel".
+  const segment = kind === "reels" ? "reel" : kind;
+
   return {
-    canonicalUrl: `https://instagram.com/p/${shortcode}`,
+    canonicalUrl: `https://www.instagram.com/${segment}/${shortcode}/`,
     externalId: shortcode,
     platform: "instagram",
+    contentHint: segment === "reel" ? "short_video" : segment === "tv" ? "video" : "social_post",
   };
 }
 

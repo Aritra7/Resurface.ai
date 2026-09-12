@@ -5,13 +5,13 @@
  * and redirects to Google. The cookies are the only place they live: they are never
  * put in a URL, a database, or client-readable storage.
  */
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { createHash, randomBytes } from "node:crypto";
 import { buildAuthUrl } from "@/lib/connectors/youtube";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isYouTubeConfigured, serverEnv } from "@/lib/env";
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.redirect(new URL("/login", serverEnv.appUrl));
