@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export function AppHeader({ current }: { current?: "dashboard" | "connections" }) {
+export function AppHeader({ current }: { current?: "dashboard" | "connections" | "add" }) {
   const router = useRouter();
 
   async function signOut() {
@@ -25,6 +25,14 @@ export function AppHeader({ current }: { current?: "dashboard" | "connections" }
         Resurface<span className="text-[var(--accent)]">.AI</span>
       </Link>
       <nav className="flex items-center gap-5">
+        {current !== "add" && (
+          <Link
+            className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+            href="/add"
+          >
+            Add a save
+          </Link>
+        )}
         {current !== "dashboard" && (
           <Link
             className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"

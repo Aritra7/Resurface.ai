@@ -44,6 +44,13 @@ describe("categorize - topics", () => {
     });
     expect(result.categories.length).toBeLessThanOrEqual(3);
   });
+
+  it("recognizes AI and productivity topics from the expanded manual-capture taxonomy", () => {
+    const ai = categorize({ ...base, title: "Building a RAG system with an LLM" });
+    const productivity = categorize({ ...base, title: "A deep work productivity workflow" });
+    expect(ai.categories[0]?.slug).toBe("ai");
+    expect(productivity.categories[0]?.slug).toBe("productivity");
+  });
 });
 
 describe("categorize - optimizer signals", () => {

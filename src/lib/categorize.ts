@@ -17,12 +17,15 @@
 export const CATEGORIES = [
   "fitness",
   "programming",
+  "ai",
   "career",
   "cooking",
   "travel",
   "finance",
   "study",
   "design",
+  "productivity",
+  "health",
   "entertainment",
 ] as const;
 
@@ -40,6 +43,8 @@ const KEYWORDS: Record<Category, string[]> = {
     "python", "react", "nextjs", "api", "database", "sql", "docker", "kubernetes",
     "github", "algorithm", "backend", "frontend", "devops", "oauth", "compiler",
     "leetcode", "stackoverflow", "postgres", "rust", "golang"],
+  ai: ["artificial intelligence", "machine learning", "deep learning", "neural network",
+    "llm", "chatgpt", "openai", "anthropic", "claude", "gpt", "transformer", "rag"],
   career: ["career", "resume", "cv", "interview", "job", "hiring", "linkedin", "salary",
     "promotion", "internship", "recruiter", "networking", "portfolio", "application"],
   cooking: ["recipe", "cook", "cooking", "baking", "meal", "kitchen", "food", "dinner",
@@ -53,6 +58,10 @@ const KEYWORDS: Record<Category, string[]> = {
     "syllabus", "admission"],
   design: ["design", "figma", "ux", "ui", "typography", "color", "illustration",
     "branding", "layout", "prototype"],
+  productivity: ["productivity", "time management", "focus", "habit", "notion", "workflow",
+    "planning", "organize", "organisation", "organization", "deep work"],
+  health: ["health", "nutrition", "sleep", "meditation", "wellness", "therapy", "mental health",
+    "recovery", "mindfulness"],
   entertainment: ["funny", "comedy", "meme", "prank", "vlog", "reaction", "gaming",
     "gameplay", "movie", "trailer", "music", "song", "podcast"],
 };
