@@ -6,59 +6,27 @@ Resurface.AI turns forgotten bookmarks into focused revisit sessions built aroun
 
 ## The problem
 
-People save constantly and return almost never. On the account this was built against,
-the oldest unopened bookmark is from **October 2015**, and **53% of saves are more than a
-year old**.
+People save constantly and return almost never. Instagram holds one pile, YouTube another,
+the browser a third — and each one is write-only. Things go in; there is no search, no
+structure, and no practical way to get anything back out.
 
-The saves are also scattered. Instagram holds one pile, YouTube another, the browser a
-third, and each one is effectively write-only: content goes in, but there is no search, no
-structure, and no way to get anything back out. These platforms are very good at capturing
-what someone cares about and useless at helping them act on it.
-
-The reason the backlog never clears is not that people lack motivation. It is that
-"read it later" asks the wrong question. Standing at a bus stop with four minutes, nobody
-wants a list of 92 things — they want the one thing worth doing in four minutes.
+The backlog does not clear because "read it later" asks the wrong question. With ten
+minutes free, nobody wants a list of ninety things. They want the one thing worth doing in
+ten minutes.
 
 ## What we built
 
-**Ingestion from three platforms into one normalized store.** Saved content is the most
-locked-down category on every major platform, and each one needed a different approach:
+Resurface pulls your saves out of those silos and turns them into a session that fits the
+time you actually have.
 
-| Source | How it works |
-| --- | --- |
-| YouTube | OAuth with PKCE and `youtube.readonly`. Imports playlist videos with real durations. Playlist names become topic labels. |
-| Chrome | A Manifest V3 extension paired to an account by a short-lived code. Sends bookmark folders and open tabs; folder paths become topic labels. |
-| Instagram | Parses the user's own data export. No password is ever requested and the Saved page is never scraped. |
-
-Three transports, one schema. Everything downstream reads the `resources` table and never
-touches a platform API.
-
-**An optimizer, not a list.** The differentiator is deliberately not aggregation. Given a
-time budget and an energy mode, each eligible save is scored on goal relevance (0.35),
-actionability (0.20), urgency (0.15), how long it has waited (0.15), and how well it fits
-the current context (0.15). The queue is then filled against the remaining minutes so the
-session ends when the time does. Every recommendation carries the reason it was chosen.
-
-**Deterministic first, AI optional.** Categorization, duration estimation, and scoring are
-all rule-based and unit-tested, so the product works with no API key and the same input
-always produces the same queue.
-
-### Design decisions worth knowing
-
-- **Playlists over likes.** A like is a reaction; a video deliberately filed into a named
-  playlist is an intention to return. The playlist name is also a topic label the user
-  wrote themselves, which beats anything inferable from a title.
-- **Watch Later is absent by necessity.** Third-party read access was removed in 2016. The
-  API returns `200 OK` with zero items, so an implementation that assumed otherwise would
-  look like it worked and silently import nothing.
-- **Instagram is an import, not a connection.** It holds no credentials, so it has no row
-  in `connections` at all. The same JSON schema is what Meta's Export Your Information
-  program delivers to approved partners, so the parser is already the production one.
-- **Tokens never reach the browser.** OAuth refresh tokens are encrypted with AES-256-GCM
-  before storage, and the UI reads a view that excludes the token columns entirely.
-- **Enrichment fetches user-supplied URLs**, so it validates every hostname and resolved
-  IP and re-checks each redirect hop — a plain fetch would turn the server into a proxy
-  into private networks and cloud metadata endpoints.
+- **Three sources, one place.** YouTube playlists arrive with real durations, Chrome
+  bookmarks with their folder names, and Instagram saves from your own data export — no
+  password, no scraping.
+- **An optimizer, not a list.** Tell it how long you have and it scores every save on your
+  goals, how long it has waited, the focus it needs, and whether it fits the time. Ten
+  minutes in, ten minutes out.
+- **Every pick is explained.** Each recommendation shows why it was chosen, so the queue
+  is something you can correct rather than just accept.
 
 ## Local development
 
