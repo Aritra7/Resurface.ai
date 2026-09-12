@@ -15,6 +15,7 @@ export type GoalMatch = {
 
 export type RecommendationResource = {
   id: string;
+  url: string;
   source: string;
   contentType: string;
   title: string;

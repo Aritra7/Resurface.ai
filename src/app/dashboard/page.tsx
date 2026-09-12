@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [activeResourceCount, setActiveResourceCount] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -36,7 +37,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const [profileResult, goalsResult] = await Promise.all([
+      const [profileResult, goalsResult, resourcesResult] = await Promise.all([
         supabase
           .from("profiles")
           .select("display_name, default_session_minutes, onboarding_completed")
@@ -48,6 +49,11 @@ export default function DashboardPage() {
           .eq("user_id", authData.user.id)
           .eq("active", true)
           .order("is_primary", { ascending: false }),
+        supabase
+          .from("resources")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", authData.user.id)
+          .eq("status", "active"),
       ]);
 
       if (!active) return;
@@ -65,6 +71,7 @@ export default function DashboardPage() {
 
       setProfile(profileResult.data);
       setGoals(goalsResult.data ?? []);
+      setActiveResourceCount(resourcesResult.count ?? 0);
       setLoading(false);
     }
 
@@ -118,6 +125,14 @@ export default function DashboardPage() {
           <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted)]">
             We will build short revisit sessions around your goals, starting with {profile?.default_session_minutes} minutes at a time.
           </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white" href="/session/new">
+              Start a session
+            </Link>
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--border)] bg-white px-6 font-semibold" href="/demo">
+              Preview sample saves
+            </Link>
+          </div>
         </section>
 
         <section className="mt-10 grid gap-5 md:grid-cols-[1.2fr_0.8fr]">
@@ -145,9 +160,12 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-8 rounded-[2rem] border border-dashed border-[var(--border)] bg-white/60 p-8 text-center">
-          <h2 className="text-2xl font-semibold">Next: add your first save</h2>
+          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{activeResourceCount} active {activeResourceCount === 1 ? "save" : "saves"}</p>
+          <h2 className="mt-2 text-2xl font-semibold">{activeResourceCount > 0 ? "Your backlog is ready for a session" : "Try the optimizer while your backlog fills up"}</h2>
           <p className="mx-auto mt-3 max-w-xl leading-7 text-[var(--muted)]">
-            Link importing and automatic categorization are the next build milestone. Your account, preferences, and priority model are now in place.
+            {activeResourceCount > 0
+              ? "Resurface will use your confirmed resources, goal matches, and time estimates."
+              : "Sample saves let you test time budgets, energy modes, explanations, and feedback immediately."}
           </p>
         </section>
       </div>

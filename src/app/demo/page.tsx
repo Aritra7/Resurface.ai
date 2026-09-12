@@ -26,7 +26,10 @@ export default function DemoPage() {
               </article>
             ))}
           </div>
-          <Link className="mt-8 inline-flex min-h-12 items-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white" href="/login">Create my own profile</Link>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white" href="/session/new">Try the optimizer</Link>
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--border)] px-6 font-semibold" href="/login">Create my profile</Link>
+          </div>
         </section>
       </div>
     </main>

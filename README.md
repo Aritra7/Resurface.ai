@@ -29,7 +29,8 @@ Add the Supabase project URL and publishable key to `.env.local`, then open
 Before creating an account, install the database schema once:
 
 1. Open the project's Supabase SQL Editor.
-2. Paste and run `supabase/migrations/202609120001_initial_schema.sql`.
+2. Paste and run every file in `supabase/migrations/` in timestamp order. Run only
+   migrations that have not already been applied to the project.
 3. Under Authentication settings, decide whether email confirmation should be
    required. Turning it off is fastest for a local hackathon demo.
 

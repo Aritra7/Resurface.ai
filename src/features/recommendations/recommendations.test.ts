@@ -14,6 +14,7 @@ function resource(
 ): RecommendationResource {
   return {
     id: "base-resource",
+    url: "https://example.com/resource",
     source: "web",
     contentType: "article",
     title: "A useful saved article",
@@ -33,7 +34,9 @@ describe("eligibility", () => {
     expect(isEligible(resource({ status: "unreviewed" }), context)).toBe(false);
     expect(isEligible(resource({ estimatedMinutes: 11 }), context)).toBe(false);
     expect(isEligible(resource({ snoozedUntil: "2026-09-13T12:00:00.000Z" }), context)).toBe(false);
-    expect(isEligible(resource({ snoozedUntil: "2026-09-11T12:00:00.000Z" }), context)).toBe(true);
+    expect(isEligible(resource({ status: "snoozed", snoozedUntil: "2026-09-13T12:00:00.000Z" }), context)).toBe(false);
+    expect(isEligible(resource({ status: "snoozed", snoozedUntil: "2026-09-11T12:00:00.000Z" }), context)).toBe(true);
+    expect(isEligible(resource({ status: "snoozed", snoozedUntil: null }), context)).toBe(false);
   });
 });
 

@@ -11,6 +11,8 @@ it supplies the documented input contract.
 Database support for publication dates, relevance deadlines, evidence, and
 confidence is installed by
 `supabase/migrations/202609120002_recommender_time_context.sql`.
+Atomic session creation and outcome recording are installed by
+`supabase/migrations/202609120003_session_workflow.sql`.
 
 ## Inputs
 
@@ -32,9 +34,9 @@ The session context supplies:
 
 ## Eligibility
 
-Only `active` resources are eligible. Resources are excluded if they are completed,
-archived, unavailable, still unreviewed, currently snoozed, invalid, or longer than
-the entire session budget.
+Active resources and snoozed resources whose snooze time has passed are eligible.
+Resources are excluded if they are completed, archived, unavailable, still
+unreviewed, currently snoozed, invalid, or longer than the entire session budget.
 
 An expired relevance deadline sets urgency to zero but does not automatically
 archive the resource. Content may retain evergreen value after an event passes, so
@@ -129,3 +131,15 @@ After a session is persisted, the ordered output maps to `session_items.position
 
 Do not duplicate scoring logic in SQL, React components, or ingestion adapters. This
 module is the single source of truth.
+
+## Current web flow
+
+`/session/new` asks for the user's current time and energy. It loads confirmed active
+resources from Supabase and maps them into the recommender contract. If the user is
+signed out, has no active resources, or the backlog query fails, the page clearly
+switches to representative sample resources so the vertical slice remains demoable.
+
+`/session/[id]` presents one item at a time, opens the original URL, requires a
+Completed, Snoozed, or Archived decision, and ends with a finite session summary.
+Real-resource sessions use the database functions to persist every decision. Sample
+sessions remain in local browser storage and never create fake Supabase rows.
