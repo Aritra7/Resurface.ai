@@ -43,3 +43,9 @@ next-env.d.ts
 
 # Local ingestion fixtures (may contain personal saved-content URLs)
 /fixtures
+
+# Demo video project (HyperFrames tooling, captures and renders — ~32MB, not app code)
+/videos
+/.agents
+/.claude
+/skills-lock.json
