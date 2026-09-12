@@ -27,7 +27,7 @@ The web MVP is complete when a user can:
 - `/add` - URL capture and assisted categorization
 - `/session/new` - time and energy selection
 - `/session/[id]` - queue and sequential revisit experience
-- `/history` - completed sessions
+- `/progress` - completed sessions and category progress
 - `/settings` - goals and defaults
 
 ## Required platform support

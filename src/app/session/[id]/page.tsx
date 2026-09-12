@@ -25,7 +25,13 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     async function load() {
       await Promise.resolve();
       if (!active) return;
-      setSession(loadStoredSession(id));
+      const stored = loadStoredSession(id);
+      setSession(stored);
+      if (stored) {
+        const firstUnanswered = stored.items.findIndex((item) => !stored.outcomes[item.resource.id]);
+        const resumeAt = stored.currentIndex ?? firstUnanswered;
+        setCurrentIndex(resumeAt < 0 ? Math.max(0, stored.items.length - 1) : resumeAt);
+      }
       setLoading(false);
     }
 
@@ -57,19 +63,31 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       if (error) setWarning("Your choice is saved on this device, but Supabase could not record it yet.");
     }
 
+    const nextOutcomes = { ...session.outcomes, [item.resource.id]: outcome };
+    const nextIndex = session.items.findIndex(
+      (candidate, index) => index > currentIndex && !nextOutcomes[candidate.resource.id],
+    );
+    const fallbackIndex = session.items.findIndex(
+      (candidate) => !nextOutcomes[candidate.resource.id],
+    );
+    const allAnswered = Object.keys(nextOutcomes).length >= session.items.length;
     const updated = {
       ...session,
-      outcomes: { ...session.outcomes, [item.resource.id]: outcome },
+      outcomes: nextOutcomes,
+      currentIndex: allAnswered
+        ? currentIndex
+        : nextIndex >= 0
+          ? nextIndex
+          : fallbackIndex,
     };
     saveStoredSession(updated);
     setSession(updated);
 
-    const isLast = currentIndex === session.items.length - 1;
-    if (isLast && session.persisted) {
+    if (allAnswered && session.persisted) {
       await createClient().rpc("finish_recommendation_session", { p_session_id: session.id });
     }
 
-    setCurrentIndex((index) => index + 1);
+    if (!allAnswered) setCurrentIndex(updated.currentIndex);
     setItemStartedAt(Date.now());
     setPending(false);
   }
@@ -90,11 +108,19 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  const complete = currentIndex >= session.items.length;
+  const complete = session.items.every((item) => Boolean(session.outcomes[item.resource.id]));
   if (complete) return <SessionSummary session={session} warning={warning} />;
 
   const current = session.items[currentIndex];
-  const progress = (currentIndex / session.items.length) * 100;
+  const progress = (Object.keys(session.outcomes).length / session.items.length) * 100;
+
+  function moveTo(index: number) {
+    if (!session) return;
+    const bounded = Math.max(0, Math.min(index, session.items.length - 1));
+    setCurrentIndex(bounded);
+    saveStoredSession({ ...session, currentIndex: bounded });
+    setItemStartedAt(Date.now());
+  }
 
   return (
     <main className="min-h-screen px-5 py-8 sm:px-8">
@@ -108,6 +134,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         </div>
 
         <section className="mt-10 rounded-[2rem] border border-[var(--border)] bg-white p-6 shadow-[0_20px_60px_rgba(40,65,46,0.08)] sm:p-10">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <button className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-40" disabled={currentIndex === 0} onClick={() => moveTo(currentIndex - 1)} type="button">← Previous</button>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Navigate session</span>
+            <button className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-40" disabled={currentIndex === session.items.length - 1} onClick={() => moveTo(currentIndex + 1)} type="button">Next →</button>
+          </div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="rounded-full bg-[#edf0e8] px-3 py-1 font-medium capitalize">{current.resource.source}</span>
             <span className="text-[var(--muted)]">{current.resource.estimatedMinutes} min · {formatContentType(current.resource.contentType)}</span>
@@ -137,6 +168,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
               <OutcomeButton disabled={pending} label="Snooze 3 days" onClick={() => chooseOutcome("snoozed")} />
               <OutcomeButton disabled={pending} label="Archive" onClick={() => chooseOutcome("archived")} />
             </div>
+            <button className="mt-4 w-full text-sm font-semibold text-[var(--muted)] hover:text-[var(--foreground)]" disabled={pending} onClick={() => chooseOutcome("skipped")} type="button">Skip and let the next session reconsider it</button>
           </div>
           {warning && <p className="mt-5 rounded-xl bg-[#fff4db] px-4 py-3 text-sm">{warning}</p>}
         </section>
@@ -165,10 +197,11 @@ function SessionSummary({ session, warning }: { session: StoredSession; warning:
         <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Session complete</p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight">You resurfaced {session.items.length} saves.</h1>
         <p className="mt-3 text-[var(--muted)]">A finite session, finished in about {session.totalMinutes} minutes.</p>
-        <div className="mt-8 grid grid-cols-3 gap-3">
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryStat label="Completed" value={counts.completed ?? 0} />
           <SummaryStat label="Snoozed" value={counts.snoozed ?? 0} />
           <SummaryStat label="Archived" value={counts.archived ?? 0} />
+          <SummaryStat label="Skipped" value={counts.skipped ?? 0} />
         </div>
         {warning && <p className="mt-5 rounded-xl bg-[#fff4db] px-4 py-3 text-sm">{warning}</p>}
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
