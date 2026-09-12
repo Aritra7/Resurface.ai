@@ -110,10 +110,15 @@ function ConnectionsInner() {
       const response = await fetch("/api/sync/youtube", { method: "POST" });
       const body = await response.json();
       if (!response.ok) {
+        const raw = body.error ?? "";
+        // Translate the two failures that are really server misconfiguration, so they
+        // point at the fix instead of reading like something the user did wrong.
         setError(
-          /has not been used in project|is disabled/i.test(body.error ?? "")
-            ? "YouTube Data API v3 is not enabled on your Google Cloud project. Enable it, then sync again."
-            : body.error ?? "Sync failed.",
+          /invalid api key|jwt|apikey/i.test(raw)
+            ? "The server's Supabase key is missing or wrong. Set SUPABASE_SECRET_KEY in the deployment environment and redeploy."
+            : /has not been used in project|is disabled/i.test(raw)
+              ? "YouTube Data API v3 is not enabled on your Google Cloud project. Enable it, then sync again."
+              : raw || "Sync failed.",
         );
       } else {
         setNotice(
@@ -209,9 +214,22 @@ function ConnectionsInner() {
   async function disconnect(provider: string) {
     if (!confirm(`Disconnect ${provider}? Your imported saves are kept.`)) return;
     setBusy(provider);
-    await fetch(`/api/connect/${provider}/disconnect`, { method: "POST" });
+    // Check the response. Reporting success unconditionally hid real failures: with a
+    // bad server key the request 500s, the connection survives, and the UI still said
+    // "disconnected" while the card stayed connected.
+    try {
+      const response = await fetch(`/api/connect/${provider}/disconnect`, { method: "POST" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(body.error ?? `Could not disconnect ${provider}. Please try again.`);
+      } else {
+        setNotice(`${provider} disconnected.`);
+      }
+    } catch {
+      setError(`Could not reach the server to disconnect ${provider}.`);
+    }
+
     setBusy(null);
-    setNotice(`${provider} disconnected.`);
     load();
   }
 
