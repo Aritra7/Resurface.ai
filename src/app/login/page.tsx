@@ -35,6 +35,8 @@ export default function LoginPage() {
       return;
     }
 
+    // Refresh the server-rendered tree so it sees the newly written auth cookies.
+    router.refresh();
     router.replace(mode === "signup" ? "/onboarding" : "/dashboard");
   }
 

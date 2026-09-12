@@ -33,8 +33,10 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // Touching getUser() is what triggers the refresh-and-rotate.
-  await supabase.auth.getUser();
+  // Supabase recommends getClaims() in Proxy. It validates the JWT and refreshes an
+  // expired session while avoiding a remote user lookup on every navigation. Fewer
+  // competing refreshes also reduce the chance of refresh-token rotation races.
+  await supabase.auth.getClaims();
 
   return response;
 }

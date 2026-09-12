@@ -3,10 +3,9 @@
 /**
  * Keeps a page in step with the Supabase session.
  *
- * proxy.ts rotates the auth cookie on every request, but a client component that calls
- * getUser() once on mount never learns about anything that happens afterwards: a token
- * refresh, a sign-out in another tab, or a session restored after the laptop wakes.
- * Without this, pages redirect to /login while the user is still perfectly signed in.
+ * proxy.ts rotates the auth cookie when necessary. The browser client is the source of
+ * truth for interactive page state: getSession() restores (and refreshes) the cookie-
+ * backed session without turning a temporary user-profile lookup failure into a logout.
  */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,15 +28,16 @@ export function useSession(options: { redirectTo?: string } = {}): SessionState 
     let cancelled = false;
 
     void (async () => {
-      // getUser() verifies with the auth server rather than trusting a local token.
-      const { data } = await supabase.auth.getUser();
+      // This is UI state, not authorization. Database RLS and server routes still
+      // validate every operation. getSession() also refreshes an expired access token.
+      const { data, error } = await supabase.auth.getSession();
       if (cancelled) return;
-      if (!data.user) {
+      if (error || !data.session?.user) {
         router.replace(redirectTo);
         setState({ user: null, loading: false });
         return;
       }
-      setState({ user: data.user, loading: false });
+      setState({ user: data.session.user, loading: false });
     })();
 
     // Fires on TOKEN_REFRESHED, SIGNED_OUT and SIGNED_IN, including from another tab.
