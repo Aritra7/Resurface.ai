@@ -157,7 +157,7 @@ and it never gets a `NEXT_PUBLIC_` prefix.
 ```bash
 # Browser — safe to expose
 NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_w2uiaD5c5z1dGIbenWM66w_fvuwj2_x
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
 
 # Server only — never NEXT_PUBLIC_
 SUPABASE_SECRET_KEY=sb_secret_...
