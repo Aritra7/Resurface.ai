@@ -53,6 +53,15 @@ export async function GET(request: NextRequest) {
   // storing a connection that will silently stop working.
   if (!tokens.refresh_token) return fail("no_refresh_token");
 
+  // Google presents YouTube access as an OPTIONAL checkbox on the consent screen. If the
+  // user leaves it unticked, Google still issues a perfectly valid token — just without
+  // youtube.readonly. Storing that produces a connection that looks healthy and then
+  // fails every sync with a 403 the user cannot interpret. Check at the door instead.
+  const grantedScopes = tokens.scope?.split(" ") ?? [];
+  if (!grantedScopes.some((scope) => scope.includes("youtube"))) {
+    return fail("youtube_scope_missing");
+  }
+
   const identity = await fetchChannelIdentity(tokens.access_token);
   const supabase = createServiceClient();
 

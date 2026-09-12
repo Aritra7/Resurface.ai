@@ -33,6 +33,9 @@ const ERROR_COPY: Record<string, string> = {
     "This Google account is not on the app's allowed testers list. The owner needs to add "
     + "your Google address under APIs & Services -> OAuth consent screen -> Test users.",
   oauth_error: "Google rejected the sign-in. Please try again.",
+  youtube_scope_missing:
+    "You did not grant access to your YouTube account, so there is nothing to import. "
+    + "Connect again and leave the YouTube permission ticked on Google's consent screen.",
   youtube_not_configured:
     "YouTube is not configured on the server yet. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
   missing_oauth_params: "That sign-in link was incomplete. Please try connecting again.",
@@ -114,7 +117,9 @@ function ConnectionsInner() {
         // Translate the two failures that are really server misconfiguration, so they
         // point at the fix instead of reading like something the user did wrong.
         setError(
-          /invalid api key|jwt|apikey/i.test(raw)
+          /insufficient authentication scopes|ACCESS_TOKEN_SCOPE_INSUFFICIENT|insufficientPermissions/i.test(raw)
+            ? "This connection is missing YouTube permission. Disconnect, then connect again and leave the YouTube checkbox ticked on Google's consent screen."
+            : /invalid api key|jwt|apikey/i.test(raw)
             ? "The server's Supabase key is missing or wrong. Set SUPABASE_SECRET_KEY in the deployment environment and redeploy."
             : /has not been used in project|is disabled/i.test(raw)
               ? "YouTube Data API v3 is not enabled on your Google Cloud project. Enable it, then sync again."
