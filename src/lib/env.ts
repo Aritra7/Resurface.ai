@@ -46,9 +46,20 @@ export const serverEnv = {
   get cronSecret() {
     return optional("CRON_SECRET");
   },
+  /** Optional until production email delivery is enabled. */
+  get resendApiKey() {
+    return optional("RESEND_API_KEY");
+  },
+  get reminderFromEmail() {
+    return optional("REMINDER_FROM_EMAIL");
+  },
 };
 
 /** Whether the YouTube connector is configured. Lets the UI explain itself instead of crashing. */
 export function isYouTubeConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
+
+export function isReminderEmailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.REMINDER_FROM_EMAIL);
 }

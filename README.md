@@ -55,7 +55,40 @@ curl -X POST http://localhost:3000/api/maintenance/enrichment \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-The same protected endpoint can be attached to a scheduler after deployment. Daily reminder preferences are stored in `profiles`; the web MVP displays the prompt in-app and does not require an email provider.
+Production scheduling is defined in `.github/workflows/maintenance.yml`. Add
+`PRODUCTION_APP_URL` and `CRON_SECRET` as GitHub Actions repository secrets. Scheduled
+reminder email uses Resend; set `RESEND_API_KEY` and `REMINDER_FROM_EMAIL` in Vercel,
+then the reminder job will deliver at most one email per user per local calendar day
+when they have active resources.
+
+Production jobs:
+
+- `/api/maintenance/enrichment` runs hourly to enrich pending resources.
+- `/api/maintenance/reminders` runs four times per hour to respect each user's saved
+  reminder time and IANA timezone.
+
+Both endpoints accept authenticated `GET` (for the production scheduler) and `POST`
+(for manual operations). GitHub Actions is used because Vercel Hobby only supports
+once-daily cron jobs, which cannot reliably respect per-user reminder times.
+
+## Production deployment
+
+1. Import this GitHub repository into Vercel.
+2. Add every variable from `.env.example` for Production, Preview, and Development.
+   Use a production `APP_URL` with no trailing slash and generate independent random
+   values for `TOKEN_ENCRYPTION_KEY` and `CRON_SECRET`.
+3. Deploy and register this exact Google redirect URI:
+   `https://<production-domain>/api/connect/youtube/callback`.
+4. Add the production origin to Supabase Authentication URL Configuration as the Site
+   URL and an allowed redirect URL.
+5. Replace the wildcard Vercel host permission in `extension/manifest.json` with the
+   exact production origin before publishing the extension. The pairing form remains
+   editable so localhost can still be used during development.
+6. Run `pnpm extension:package` and test pairing plus bookmark import against the
+   production deployment.
+7. Add the deployed origin as the GitHub Actions secret `PRODUCTION_APP_URL`, and add
+   the exact same `CRON_SECRET` value used in Vercel. Run the **Production maintenance**
+   workflow manually once to verify both endpoints.
 
 ## Documentation
 
