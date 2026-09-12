@@ -50,6 +50,29 @@ export function createServiceClient(): SupabaseClient {
   });
 }
 
+/** Whether a usable server key is configured. */
+export function hasServiceKey(): boolean {
+  return Boolean(process.env.SUPABASE_SECRET_KEY);
+}
+
+/**
+ * A client for writing the caller's own rows.
+ *
+ * Prefers the service client, but falls back to the caller's RLS-scoped session when no
+ * server key is configured. That fallback is safe precisely because RLS applies: the
+ * `resources own rows` policy lets a user read and write only their own resources, which
+ * is all ingest ever does.
+ *
+ * This exists so a deployment missing SUPABASE_SECRET_KEY still imports content instead
+ * of failing with "Invalid API key". It cannot rescue routes that touch connections,
+ * pairing_codes or extension_tokens, where RLS intentionally denies all client access --
+ * those genuinely require the server key.
+ */
+export async function createOwnDataClient(): Promise<SupabaseClient> {
+  if (hasServiceKey()) return createServiceClient();
+  return createServerClient();
+}
+
 /** The signed-in user, or null. Prefer this over getSession() — it verifies with the auth server. */
 export async function getCurrentUser() {
   const supabase = await createServerClient();

@@ -9,7 +9,7 @@
  * scrape — see PRODUCT_FLOW.md section 11.
  */
 import { NextResponse } from "next/server";
-import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
+import { createOwnDataClient, getCurrentUser } from "@/lib/supabase/server";
 import {
   mergeCollections,
   parsePermalinkList,
@@ -89,7 +89,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServiceClient();
+  // Falls back to the caller's RLS-scoped session when no server key is configured.
+  // Instagram import only writes the user's own resources, which RLS already permits,
+  // so this route keeps working on a deployment missing SUPABASE_SECRET_KEY.
+  const supabase = await createOwnDataClient();
   const runId = await startSyncRun(supabase, user.id, "instagram");
 
   try {
