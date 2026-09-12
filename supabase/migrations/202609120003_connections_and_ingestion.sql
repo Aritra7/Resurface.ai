@@ -16,9 +16,11 @@ comment on column public.resources.collection is
 
 -- Lets a sync re-run upsert the same platform item without duplicating it. Distinct from the
 -- existing canonical_url unique index, which collapses the same URL across different sources.
+-- Total, not partial: ON CONFLICT cannot match a partial index unless the statement
+-- repeats its predicate, which PostgREST cannot express. Null external_ids never
+-- collide anyway, since nulls are not equal to each other in Postgres.
 create unique index if not exists resources_user_source_external_unique
-  on public.resources (user_id, source, external_id)
-  where external_id is not null;
+  on public.resources (user_id, source, external_id);
 
 -- 2. A grant to read one platform on the user's behalf.
 -- Instagram is deliberately absent: it is a file import and we never hold credentials for it.

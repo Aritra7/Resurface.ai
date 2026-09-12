@@ -14,13 +14,26 @@ export async function POST() {
 
   const supabase = createServiceClient();
 
-  const { data: connection } = await supabase
+  // Order by newest and take the first rather than maybeSingle(): a user who reconnects
+  // under a second Google account legitimately has two rows, and maybeSingle() errors on
+  // more than one. That error would otherwise surface as a misleading "not connected".
+  const { data: connections, error: lookupError } = await supabase
     .from("connections")
     .select("id, user_id, provider, access_token_enc, refresh_token_enc, expires_at, external_account_label")
     .eq("user_id", user.id)
     .eq("provider", "youtube")
-    .maybeSingle<ConnectionRow>();
+    .order("updated_at", { ascending: false })
+    .returns<ConnectionRow[]>();
 
+  if (lookupError) {
+    console.error("[youtube sync] connection lookup failed:", lookupError);
+    return NextResponse.json(
+      { error: `Could not read your connection: ${lookupError.message}` },
+      { status: 500 },
+    );
+  }
+
+  const connection = connections?.[0];
   if (!connection) {
     return NextResponse.json({ error: "YouTube is not connected" }, { status: 400 });
   }
