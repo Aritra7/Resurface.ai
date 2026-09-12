@@ -21,9 +21,16 @@ async function getToken() {
 }
 
 async function render() {
-  const token = await getToken();
-  $("pair-view").hidden = Boolean(token);
-  $("sync-view").hidden = !token;
+  try {
+    const token = await getToken();
+    $("pair-view").hidden = Boolean(token);
+    $("sync-view").hidden = !token;
+  } catch (error) {
+    // Never leave the popup blank: fall back to the pairing form and say what broke.
+    $("pair-view").hidden = false;
+    $("sync-view").hidden = true;
+    setStatus(`Storage unavailable: ${error.message}`, "error");
+  }
 }
 
 /** Walks the bookmark tree, carrying the folder path down as the collection label. */

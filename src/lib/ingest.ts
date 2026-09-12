@@ -120,12 +120,20 @@ export async function ingestItems(
     }
 
     const externalId = item.externalId ?? canonical.externalId ?? canonical.canonicalUrl;
-    const key = `${item.source}::${externalId}`;
-    if (seenKeys.has(key)) {
+
+    // Guard both unique indexes within the batch. Bookmarks collide on canonical_url far
+    // more often than you would expect — the same article filed in two folders, or saved
+    // twice with different tracking parameters — and Postgres aborts the entire statement
+    // on such a conflict, so catching it here keeps a single duplicate from costing us
+    // every other row in the chunk.
+    const idKey = `${item.source}::${externalId}`;
+    const urlKey = `url::${canonical.canonicalUrl}`;
+    if (seenKeys.has(idKey) || seenKeys.has(urlKey)) {
       skipped += 1;
       continue;
     }
-    seenKeys.add(key);
+    seenKeys.add(idKey);
+    seenKeys.add(urlKey);
 
     const contentType = inferContentType(item, item.contentHint ?? canonical.contentHint);
 
@@ -154,27 +162,59 @@ export async function ingestItems(
   let inserted = 0;
   for (let i = 0; i < rows.length; i += 100) {
     const chunk = rows.slice(i, i + 100);
-    const { data, error } = await supabase
-      .from("resources")
-      .upsert(chunk, {
-        onConflict: "user_id,source,external_id",
-        ignoreDuplicates: false,
-      })
-      .select("id");
-
-    if (error) {
-      // The canonical_url unique index can still reject a row whose URL already
-      // arrived from another source. That is correct dedup behaviour, not a failure.
-      if (error.code === "23505") {
-        skipped += chunk.length;
-        continue;
-      }
-      throw new Error(`Ingest failed: ${error.message}`);
-    }
-    inserted += data?.length ?? 0;
+    const result = await upsertChunk(supabase, chunk);
+    inserted += result.inserted;
+    skipped += result.skipped;
   }
 
   return { seen: items.length, inserted, skipped };
+}
+
+/**
+ * Upserts a chunk, falling back to row-by-row when the batch collides.
+ *
+ * Two unique indexes guard `resources`: (user_id, source, external_id), which the upsert
+ * targets, and (user_id, canonical_url), which it cannot. Two different bookmarks can
+ * legitimately canonicalize to the same URL — the same article bookmarked twice in
+ * different folders, or once with a tracking parameter — and that trips the second index.
+ *
+ * Postgres aborts the whole statement on such a conflict, so treating the error as
+ * "this chunk was duplicates" silently discarded every good row alongside the one
+ * collision. Retrying individually keeps the 79 good rows and skips only the real
+ * duplicate, which is what the caller's counts should reflect.
+ */
+async function upsertChunk(
+  supabase: SupabaseClient,
+  chunk: Record<string, unknown>[],
+): Promise<{ inserted: number; skipped: number }> {
+  const { data, error } = await supabase
+    .from("resources")
+    .upsert(chunk, { onConflict: "user_id,source,external_id", ignoreDuplicates: false })
+    .select("id");
+
+  if (!error) return { inserted: data?.length ?? 0, skipped: 0 };
+  if (error.code !== "23505") throw new Error(`Ingest failed: ${error.message}`);
+
+  // A single row cannot be "partially" duplicated, so no further fallback is needed.
+  if (chunk.length === 1) return { inserted: 0, skipped: 1 };
+
+  let inserted = 0;
+  let skipped = 0;
+  for (const row of chunk) {
+    const single = await supabase
+      .from("resources")
+      .upsert([row], { onConflict: "user_id,source,external_id", ignoreDuplicates: false })
+      .select("id");
+
+    if (single.error) {
+      if (single.error.code === "23505") skipped += 1;
+      else throw new Error(`Ingest failed: ${single.error.message}`);
+    } else {
+      inserted += single.data?.length ?? 0;
+    }
+  }
+
+  return { inserted, skipped };
 }
 
 /** Opens a sync_runs row. Pair with finishSyncRun. */
