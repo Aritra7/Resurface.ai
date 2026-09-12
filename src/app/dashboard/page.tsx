@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/lib/use-session";
+import { AppHeader } from "@/components/app-header";
 
 type Profile = {
   display_name: string;
@@ -119,10 +120,6 @@ export default function DashboardPage() {
     };
   }, [router, user, sessionLoading]);
 
-  async function signOut() {
-    await createClient().auth.signOut();
-    router.replace("/");
-  }
 
   if (sessionLoading || loading) {
     return <main className="flex min-h-screen items-center justify-center">Loading your dashboard…</main>;
@@ -142,20 +139,40 @@ export default function DashboardPage() {
     );
   }
 
+  /**
+   * Instagram is a file import and deliberately has no `connections` row, so a list
+   * built only from connections omits it entirely. Merge both shapes into one view
+   * model: every source the user actually has saves from gets a card.
+   */
+  const sources = [
+    ...connections.map((connection) => ({
+      provider: connection.provider,
+      count: sourceCounts[connection.provider] ?? 0,
+      label: connection.external_account_label ?? "Connected",
+      lastSyncAt: connection.last_sync_at as string | null,
+      broken: connection.status === "error" || connection.status === "expired",
+    })),
+    ...((sourceCounts.instagram ?? 0) > 0 &&
+    !connections.some((connection) => connection.provider === "instagram")
+      ? [
+          {
+            provider: "instagram",
+            count: sourceCounts.instagram,
+            label: "Imported from your export",
+            lastSyncAt: null as string | null,
+            broken: false,
+          },
+        ]
+      : []),
+  ];
+
   const primaryGoal = goals.find((goal) => goal.is_primary);
   const otherGoals = goals.filter((goal) => !goal.is_primary);
 
   return (
     <main className="min-h-screen px-5 py-8 sm:px-8">
       <div className="mx-auto max-w-5xl">
-        <header className="flex items-center justify-between gap-4">
-          <Link className="text-lg font-semibold" href="/">
-            Resurface<span className="text-[var(--accent)]">.AI</span>
-          </Link>
-          <button className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]" onClick={signOut} type="button">
-            Sign out
-          </button>
-        </header>
+        <AppHeader current="dashboard" />
 
         <section className="mt-14">
           <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Your resurfacing plan</p>
@@ -215,39 +232,28 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {connections.length > 0 ? (
+          {sources.length > 0 ? (
             <ul className="mt-6 grid gap-3 sm:grid-cols-3">
-              {connections.map((connection) => {
-                const count = sourceCounts[connection.provider] ?? 0;
-                const broken = connection.status === "error" || connection.status === "expired";
-                return (
-                  <li
-                    className="rounded-2xl border border-[var(--border)] p-4"
-                    key={connection.provider}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">
-                        {PROVIDER_LABEL[connection.provider] ?? connection.provider}
-                      </p>
-                      <span
-                        aria-label={broken ? "Needs attention" : "Connected"}
-                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                          broken ? "bg-[#9b4444]" : "bg-[var(--accent)]"
-                        }`}
-                      />
-                    </div>
-                    <p className="mt-2 text-2xl font-semibold">{count}</p>
-                    <p className="text-sm text-[var(--muted)]">
-                      {connection.external_account_label ?? "Connected"}
+              {sources.map((source) => (
+                <li className="rounded-2xl border border-[var(--border)] p-4" key={source.provider}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold">{PROVIDER_LABEL[source.provider] ?? source.provider}</p>
+                    <span
+                      aria-label={source.broken ? "Needs attention" : "Connected"}
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                        source.broken ? "bg-[#9b4444]" : "bg-[var(--accent)]"
+                      }`}
+                    />
+                  </div>
+                  <p className="mt-2 text-2xl font-semibold">{source.count}</p>
+                  <p className="text-sm text-[var(--muted)]">{source.label}</p>
+                  {source.lastSyncAt && (
+                    <p className="mt-2 text-xs text-[var(--muted)]">
+                      Synced {new Date(source.lastSyncAt).toLocaleDateString()}
                     </p>
-                    {connection.last_sync_at && (
-                      <p className="mt-2 text-xs text-[var(--muted)]">
-                        Synced {new Date(connection.last_sync_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
+                  )}
+                </li>
+              ))}
             </ul>
           ) : (
             <p className="mt-4 leading-7 text-[var(--muted)]">
@@ -255,14 +261,6 @@ export default function DashboardPage() {
               first session has something to choose from.
             </p>
           )}
-
-          {/* Instagram is an import, not a connection, so it has no connections row. */}
-          {(sourceCounts.instagram ?? 0) > 0 &&
-            !connections.some((connection) => connection.provider === "instagram") && (
-              <p className="mt-4 text-sm text-[var(--muted)]">
-                Plus {sourceCounts.instagram} imported from Instagram.
-              </p>
-            )}
 
           {activeResourceCount === 0 && (
             <Link

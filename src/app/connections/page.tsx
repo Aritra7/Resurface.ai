@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/lib/use-session";
+import { AppHeader } from "@/components/app-header";
 
 type Connection = {
   id: string;
@@ -21,6 +20,7 @@ type ConnectionsData = {
   counts: Record<string, number>;
   totalResources: number;
   pendingEnrichment: number;
+  instagramEnriched: number;
   youtubeConfigured: boolean;
 };
 
@@ -209,10 +209,6 @@ function ConnectionsInner() {
     load();
   }
 
-  async function signOut() {
-    await createClient().auth.signOut();
-    router.replace("/");
-  }
 
   if (sessionLoading || loading) {
     return <main className="flex min-h-screen items-center justify-center">Loading your connections…</main>;
@@ -224,19 +220,7 @@ function ConnectionsInner() {
   return (
     <main className="min-h-screen px-5 py-8 sm:px-8">
       <div className="mx-auto max-w-3xl">
-        <header className="flex items-center justify-between gap-4">
-          <Link className="text-lg font-semibold" href="/">
-            Resurface<span className="text-[var(--accent)]">.AI</span>
-          </Link>
-          <div className="flex items-center gap-5">
-            <Link className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]" href="/dashboard">
-              Dashboard
-            </Link>
-            <button className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]" onClick={signOut} type="button">
-              Sign out
-            </button>
-          </div>
-        </header>
+        <AppHeader current="connections" />
 
         <section className="mt-12">
           <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Connections</p>
@@ -402,8 +386,10 @@ function ConnectionsInner() {
             </div>
 
             {(data?.counts.instagram ?? 0) > 0 && (
-              <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-5 text-sm">
+              <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-5 text-sm sm:grid-cols-3">
                 <Stat label="Posts imported" value={String(data?.counts.instagram ?? 0)} />
+                <Stat label="With details" value={String(data?.instagramEnriched ?? 0)} />
+                <Stat label="Source" value="Data export" />
               </dl>
             )}
 
