@@ -244,7 +244,7 @@ function ConnectionsInner() {
 
         <section className="mt-8 space-y-4">
           {/* YouTube */}
-          <article className="rounded-[2rem] border border-[var(--border)] bg-white p-7">
+          <article className="scroll-mt-8 rounded-[2rem] border border-[var(--border)] bg-white p-7" id="youtube">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-semibold">YouTube</h2>
@@ -313,7 +313,7 @@ function ConnectionsInner() {
           </article>
 
           {/* Chrome */}
-          <article className="rounded-[2rem] border border-[var(--border)] bg-white p-7">
+          <article className="scroll-mt-8 rounded-[2rem] border border-[var(--border)] bg-white p-7" id="chrome">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-semibold">Chrome bookmarks &amp; tabs</h2>
@@ -373,7 +373,7 @@ function ConnectionsInner() {
           </article>
 
           {/* Instagram - import only, never credentials */}
-          <article className="rounded-[2rem] border border-[var(--border)] bg-white p-7">
+          <article className="scroll-mt-8 rounded-[2rem] border border-[var(--border)] bg-white p-7" id="instagram">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-semibold">Instagram</h2>

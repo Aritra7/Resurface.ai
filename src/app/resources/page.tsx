@@ -113,7 +113,41 @@ export default function ResourcesPage() {
             <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">Everything you saved, ready to resurface.</h1>
             <p className="mt-4 max-w-2xl text-[var(--muted)]">Browse real saves by category, goal, and state. The optimizer draws its sessions from this library.</p>
           </div>
-          <Link className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white" href="/add">Add resources</Link>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--border)] bg-white px-6 font-semibold" href="/connections">Connect sources</Link>
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white" href="/add">Add a link</Link>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-[2rem] border border-[#b8d9ad] bg-[#edf8e9] p-6 sm:p-8">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Bring your saves here</p>
+              <h2 className="mt-2 text-2xl font-semibold">Connect or import the places where you save things.</h2>
+              <p className="mt-2 max-w-2xl leading-7 text-[var(--muted)]">Resurface never silently watches your accounts. Choose a source, authorize or import it, and your saves will appear in this library.</p>
+            </div>
+            <Link className="shrink-0 text-sm font-semibold text-[var(--accent)]" href="/connections">Manage all connections →</Link>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
+            <SourceCard
+              action="Connect YouTube"
+              copy="Import videos from your YouTube playlists with their real durations."
+              href="/connections#youtube"
+              title="YouTube"
+            />
+            <SourceCard
+              action="Import Instagram"
+              copy="Upload Instagram's Saved export—no password or scraping required."
+              href="/connections#instagram"
+              title="Instagram & Reels"
+            />
+            <SourceCard
+              action="Connect Chrome"
+              copy="Pair the extension to send bookmarks and open tabs into Resurface."
+              href="/connections#chrome"
+              title="Browser saves"
+            />
+          </div>
         </section>
 
         <section className="mt-8 grid gap-3 rounded-[2rem] border border-[var(--border)] bg-white p-5 md:grid-cols-[1fr_auto_auto]">
@@ -133,7 +167,11 @@ export default function ResourcesPage() {
         ) : grouped.length === 0 ? (
           <section className="mt-8 rounded-[2rem] border border-dashed border-[var(--border)] bg-white p-10 text-center">
             <h2 className="text-2xl font-semibold">No matching saves yet.</h2>
-            <p className="mt-3 text-[var(--muted)]">Change the filters or add your first resource.</p>
+            <p className="mt-3 text-[var(--muted)]">Change the filters, connect a source, or add your first link.</p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link className="inline-flex min-h-11 items-center rounded-full border border-[var(--border)] px-5 font-semibold" href="/connections">Connect a source</Link>
+              <Link className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent)] px-5 font-semibold text-white" href="/add">Add a link</Link>
+            </div>
           </section>
         ) : (
           <div className="mt-8 space-y-7">
@@ -160,6 +198,16 @@ export default function ResourcesPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function SourceCard({ title, copy, action, href }: { title: string; copy: string; action: string; href: string }) {
+  return (
+    <article className="flex min-h-48 flex-col rounded-2xl border border-[#c9dec2] bg-white p-5">
+      <h3 className="text-lg font-semibold">{title}</h3>
+      <p className="mt-2 flex-1 text-sm leading-6 text-[var(--muted)]">{copy}</p>
+      <Link className="mt-5 text-sm font-semibold text-[var(--accent)]" href={href}>{action} →</Link>
+    </article>
   );
 }
 
