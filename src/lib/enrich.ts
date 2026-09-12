@@ -52,10 +52,16 @@ async function fetchText(url: string, userAgent: string): Promise<string | null>
       timeoutMs: FETCH_TIMEOUT_MS,
       headers: { "User-Agent": userAgent, Accept: "text/html,application/xhtml+xml" },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
 
     const type = response.headers.get("content-type") ?? "";
-    if (!type.includes("html")) return null;
+    if (!type.includes("html")) {
+      await response.body?.cancel();
+      return null;
+    }
 
     // Cap the read: OG tags live in <head>, so there is no reason to buffer a whole page.
     const reader = response.body?.getReader();
@@ -90,7 +96,10 @@ async function enrichYouTube(url: string): Promise<Enrichment | null> {
     // a query parameter, so route it through safeFetch for uniform timeout handling.
     const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
     const response = await safeFetch(endpoint, { timeoutMs: FETCH_TIMEOUT_MS });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
     const data = (await response.json()) as {
       title?: string;
       author_name?: string;

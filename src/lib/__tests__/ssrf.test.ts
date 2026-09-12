@@ -31,6 +31,7 @@ describe("isBlockedIp", () => {
   it("blocks IPv6 unique-local and link-local", () => {
     expect(isBlockedIp("fd00::1")).toBe(true);
     expect(isBlockedIp("fe80::1")).toBe(true);
+    expect(isBlockedIp("febf::1")).toBe(true);
   });
 
   it("blocks IPv4-mapped IPv6 loopback, which bypasses a naive v4-only check", () => {
@@ -147,6 +148,23 @@ describe("safeFetch - redirect-based SSRF", () => {
     try {
       const response = await safeFetch("https://example.com/page");
       expect(response.status).toBe(200);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it("pins the request through a dispatcher instead of resolving DNS again", async () => {
+    const original = globalThis.fetch;
+    let suppliedDispatcher = false;
+    globalThis.fetch = (async (_url, init) => {
+      suppliedDispatcher = Boolean((init as RequestInit & { dispatcher?: unknown })?.dispatcher);
+      return new Response("ok", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const response = await safeFetch("https://example.com/page");
+      expect(await response.text()).toBe("ok");
+      expect(suppliedDispatcher).toBe(true);
     } finally {
       globalThis.fetch = original;
     }

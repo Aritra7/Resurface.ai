@@ -9,6 +9,7 @@
  */
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { Agent, type Dispatcher } from "undici";
 
 export class SsrfError extends Error {
   constructor(message: string) {
@@ -74,7 +75,8 @@ export function isBlockedIp(ip: string): boolean {
   if (version === 6) {
     const normalized = ip.toLowerCase().replace(/^\[|\]$/g, "");
     if (normalized === "::" || normalized === "::1") return true; // unspecified, loopback
-    if (normalized.startsWith("fe80")) return true; // link-local
+    // fe80::/10 spans fe80 through febf, not just addresses beginning with fe80.
+    if (/^fe[89ab]/.test(normalized)) return true; // link-local
     if (/^f[cd]/.test(normalized)) return true; // unique local
     if (normalized.startsWith("ff")) return true; // multicast
     // IPv4-mapped (::ffff:127.0.0.1) must be judged by its embedded v4 address.
@@ -92,7 +94,14 @@ export function isBlockedIp(ip: string): boolean {
  * Checking all resolved addresses matters because a hostname can return both a public
  * and a private record, and picking only the first would let the private one through.
  */
-export async function assertUrlIsSafe(rawUrl: string): Promise<URL> {
+type ResolvedAddress = { address: string; family: 4 | 6 };
+
+type SafeDestination = {
+  url: URL;
+  addresses: ResolvedAddress[];
+};
+
+async function resolveSafeDestination(rawUrl: string): Promise<SafeDestination> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -114,12 +123,12 @@ export async function assertUrlIsSafe(rawUrl: string): Promise<URL> {
   // A literal IP needs no DNS round trip.
   if (isIP(hostname)) {
     if (isBlockedIp(hostname)) throw new SsrfError(`Blocked address: ${hostname}`);
-    return url;
+    return { url, addresses: [{ address: hostname, family: isIP(hostname) as 4 | 6 }] };
   }
 
-  let addresses: Array<{ address: string }>;
+  let addresses: ResolvedAddress[];
   try {
-    addresses = await lookup(hostname, { all: true });
+    addresses = (await lookup(hostname, { all: true })) as ResolvedAddress[];
   } catch {
     throw new SsrfError(`Could not resolve ${hostname}`);
   }
@@ -131,7 +140,11 @@ export async function assertUrlIsSafe(rawUrl: string): Promise<URL> {
     }
   }
 
-  return url;
+  return { url, addresses };
+}
+
+export async function assertUrlIsSafe(rawUrl: string): Promise<URL> {
+  return (await resolveSafeDestination(rawUrl)).url;
 }
 
 export const MAX_REDIRECTS = 5;
@@ -151,25 +164,104 @@ export async function safeFetch(
   let current = rawUrl;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
-    const url = await assertUrlIsSafe(current);
+    const { url, addresses } = await resolveSafeDestination(current);
+
+    // DNS validation and fetch must use the same result. If fetch resolves the hostname a
+    // second time, an attacker-controlled domain can return a public address to the check
+    // and a private address milliseconds later (DNS rebinding). This per-hop dispatcher
+    // pins the connection to one address from the already-validated result while preserving
+    // the original hostname for the Host header and TLS certificate/SNI validation.
+    const pinned = addresses[0];
+    const dispatcher = new Agent({
+      connect: {
+        lookup(_hostname, options, callback) {
+          const family = typeof options.family === "string"
+            ? Number(options.family.slice(-1))
+            : options.family;
+          if (family && family !== pinned.family) {
+            const error = new Error(`Validated address family ${pinned.family} is unavailable`);
+            Object.assign(error, { code: "ENOTFOUND" });
+            callback(error as NodeJS.ErrnoException, pinned.address, pinned.family);
+            return;
+          }
+          if (options.all) {
+            callback(null, [pinned], pinned.family);
+          } else {
+            callback(null, pinned.address, pinned.family);
+          }
+        },
+      },
+    });
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
-      response = await fetch(url, { ...rest, redirect: "manual", signal: controller.signal });
+      const signal = rest.signal
+        ? AbortSignal.any([rest.signal, controller.signal])
+        : controller.signal;
+      response = await fetch(url, {
+        ...rest,
+        redirect: "manual",
+        signal,
+        dispatcher,
+      } as RequestInit & { dispatcher: Dispatcher });
+    } catch (error) {
+      await dispatcher.destroy(error instanceof Error ? error : new Error("Fetch failed"));
+      throw error;
     } finally {
       clearTimeout(timer);
     }
 
-    if (response.status < 300 || response.status > 399) return response;
+    if (response.status < 300 || response.status > 399) {
+      return closeDispatcherWithBody(response, dispatcher);
+    }
 
     const location = response.headers.get("location");
-    if (!location) return response;
+    if (!location) return closeDispatcherWithBody(response, dispatcher);
+
+    await response.body?.cancel();
+    await dispatcher.close();
 
     // Relative Locations resolve against the URL we just fetched.
     current = new URL(location, url).toString();
   }
 
   throw new SsrfError(`Too many redirects (>${MAX_REDIRECTS})`);
+}
+
+/** Close the one-use dispatcher once the caller consumes or cancels the response body. */
+function closeDispatcherWithBody(response: Response, dispatcher: Agent): Response {
+  if (!response.body) {
+    void dispatcher.close();
+    return response;
+  }
+
+  const reader = response.body.getReader();
+  const body = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const chunk = await reader.read();
+        if (chunk.done) {
+          controller.close();
+          await dispatcher.close();
+        } else {
+          controller.enqueue(chunk.value);
+        }
+      } catch (error) {
+        controller.error(error);
+        await dispatcher.destroy(error instanceof Error ? error : new Error("Body read failed"));
+      }
+    },
+    async cancel(reason) {
+      await reader.cancel(reason);
+      await dispatcher.destroy();
+    },
+  });
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }

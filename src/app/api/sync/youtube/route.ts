@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       durationSeconds: video.durationSeconds,
       collection: video.collection,
       savedAt: video.savedAt,
+      publishedAt: video.publishedAt,
     }));
 
     const result = await ingestItems(supabase, user.id, items, connection.id);
