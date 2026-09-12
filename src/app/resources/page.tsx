@@ -150,7 +150,7 @@ export default function ResourcesPage() {
                         {resource.enrichment_status === "failed" && <span className="rounded-full bg-[#fbeceb] px-2.5 py-1 text-xs font-semibold text-[#8a3a33]">Needs details</span>}
                         {resource.resource_goals.map((match) => goalNames.get(match.goal_id)).filter(Boolean).map((goal) => <span className="rounded-full bg-[#edf0e8] px-2.5 py-1 text-xs" key={goal}>{goal}</span>)}
                       </div>
-                      <a className="mt-4 inline-flex text-sm font-semibold text-[var(--accent)]" href={resource.url} rel="noreferrer" target="_blank">Open resource →</a>
+                      <div className="mt-4 flex items-center gap-4"><a className="inline-flex text-sm font-semibold text-[var(--accent)]" href={resource.url} rel="noreferrer" target="_blank">Open resource →</a><Link className="text-sm font-semibold text-[var(--muted)] hover:text-[var(--foreground)]" href={`/resources/${resource.id}/edit`}>Edit details</Link></div>
                     </article>
                   ))}
                 </div>

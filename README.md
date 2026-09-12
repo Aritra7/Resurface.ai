@@ -46,6 +46,17 @@ pnpm test
 pnpm build
 ```
 
+## Local maintenance
+
+Set `CRON_SECRET` to a long random value, then process pending metadata without a hosted scheduler:
+
+```bash
+curl -X POST http://localhost:3000/api/maintenance/enrichment \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+The same protected endpoint can be attached to a scheduler after deployment. Daily reminder preferences are stored in `profiles`; the web MVP displays the prompt in-app and does not require an email provider.
+
 ## Documentation
 
 - [Complete product flow](docs/PRODUCT_FLOW.md)
@@ -53,3 +64,4 @@ pnpm build
 - [Onboarding UX recommendations](docs/ONBOARDING_UX.md)
 - [Resource ingestion and categorization specification](docs/INGESTION_AND_CATEGORIZATION.md)
 - [Recommender system specification](docs/RECOMMENDER_SYSTEM.md)
+- [Local demo checklist](docs/DEMO_CHECKLIST.md)

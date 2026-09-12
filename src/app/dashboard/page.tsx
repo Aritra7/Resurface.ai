@@ -7,11 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/lib/use-session";
 import { AppHeader } from "@/components/app-header";
 import { listStoredSessions } from "@/features/sessions/local-session-store";
+import { isReminderDue, reminderDateKey } from "@/features/reminders/due";
 
 type Profile = {
   display_name: string;
   default_session_minutes: number;
   onboarding_completed: boolean;
+  reminder_enabled: boolean;
+  reminder_time: string;
+  timezone: string;
 };
 
 type Goal = {
@@ -63,6 +67,7 @@ export default function DashboardPage() {
   const [localSessionIds, setLocalSessionIds] = useState<string[]>([]);
   const [tourOpen, setTourOpen] = useState(false);
   const [tourStep, setTourStep] = useState(0);
+  const [reminderDismissed, setReminderDismissed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -80,7 +85,7 @@ export default function DashboardPage() {
         await Promise.all([
         supabase
           .from("profiles")
-          .select("display_name, default_session_minutes, onboarding_completed")
+          .select("display_name, default_session_minutes, onboarding_completed, reminder_enabled, reminder_time, timezone")
           .eq("id", authData.user.id)
           .maybeSingle(),
         supabase
@@ -153,6 +158,7 @@ export default function DashboardPage() {
       setRecentSessions((sessionsResult.data as RecentSession[] | null) ?? []);
       setLocalSessionIds(listStoredSessions().map((session) => session.id));
       if (!window.localStorage.getItem("resurface-dashboard-tour-complete")) setTourOpen(true);
+      setReminderDismissed(window.localStorage.getItem(`resurface-reminder-dismissed:${reminderDateKey(profileResult.data.timezone)}`) === "true");
       setLoading(false);
     }
 
@@ -224,6 +230,11 @@ export default function DashboardPage() {
     setTourStep(0);
   }
 
+  function dismissReminder() {
+    window.localStorage.setItem(`resurface-reminder-dismissed:${reminderDateKey(profile?.timezone ?? "UTC")}`, "true");
+    setReminderDismissed(true);
+  }
+
   return (
     <main className="min-h-screen px-5 py-8 sm:px-8">
       <div className="mx-auto max-w-5xl">
@@ -272,6 +283,13 @@ export default function DashboardPage() {
             <p className="mt-6 text-sm leading-6 text-white/75">You will be able to change the time whenever you start a session.</p>
           </article>
         </section>
+
+        {profile && activeResourceCount > 0 && profile.reminder_enabled && isReminderDue(profile.reminder_time, profile.timezone) && !reminderDismissed && (
+          <section className="mt-8 flex flex-col justify-between gap-5 rounded-[2rem] border border-[#b8d9ad] bg-[#edf8e9] p-6 sm:flex-row sm:items-center sm:p-7">
+            <div><p className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--accent)]">Today’s resurfacing prompt</p><h2 className="mt-2 text-2xl font-semibold">A few saved ideas are ready for you.</h2><p className="mt-2 text-sm leading-6 text-[var(--muted)]">Your preferred reminder time is {profile.reminder_time.slice(0, 5)}. Start with your default {profile.default_session_minutes}-minute session.</p></div>
+            <div className="flex shrink-0 gap-3"><button className="rounded-full px-4 py-3 text-sm font-semibold text-[var(--muted)]" onClick={dismissReminder} type="button">Not today</button><Link className="inline-flex items-center rounded-full bg-[var(--accent)] px-5 py-3 font-semibold text-white" href={`/session/new?minutes=${profile.default_session_minutes}`}>Start now →</Link></div>
+          </section>
+        )}
 
         <section className="mt-8 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
           <article className="rounded-[2rem] bg-[var(--accent)] p-7 text-white shadow-[0_24px_60px_rgba(47,111,78,0.18)]">

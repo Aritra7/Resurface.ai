@@ -43,6 +43,9 @@ export const serverEnv = {
   get googleClientSecret() {
     return optional("GOOGLE_CLIENT_SECRET");
   },
+  get cronSecret() {
+    return optional("CRON_SECRET");
+  },
 };
 
 /** Whether the YouTube connector is configured. Lets the UI explain itself instead of crashing. */

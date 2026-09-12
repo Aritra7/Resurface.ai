@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-type AppRoute = "dashboard" | "resources" | "path" | "progress" | "connections" | "add";
+type AppRoute = "dashboard" | "resources" | "path" | "progress" | "connections" | "add" | "settings";
 
 const PRIMARY_LINKS: Array<{ href: string; label: string; route: AppRoute }> = [
   { href: "/dashboard", label: "Dashboard", route: "dashboard" },
@@ -53,6 +53,7 @@ export function AppHeader({ current }: { current?: AppRoute }) {
             Connections
           </Link>
         )}
+        {current !== "settings" && <Link className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]" href="/settings">Settings</Link>}
         <button
           className="text-sm font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
           onClick={signOut}
