@@ -267,15 +267,22 @@ export async function fetchSavedVideos(
   accessToken: string,
   options: SyncOptions = {},
 ): Promise<YouTubeVideo[]> {
-  // Generous ceilings: the optimizer is only as good as the backlog it can see, and a
-  // real account here has 1,250+ liked videos. At 1 quota unit per 50 items, 5,000
-  // videos costs ~100 units of playlistItems plus ~100 of videos against a 10,000/day
-  // budget, so wall-clock time is the limiting factor, not quota.
+  // Playlists only by default.
   //
-  // Liked videos get their own ceiling because they are the primary saved signal and
-  // should never be truncated to make room for an ordinary playlist.
+  // A like is a reaction, not an intention to return: this account's liked list runs to
+  // 1,254 items going back to 2019, most of it entertainment watched once. A video the
+  // user deliberately filed into a named playlist is a genuine "come back to this", and
+  // the playlist name is a user-authored topic label — the strongest categorization
+  // signal available anywhere in the pipeline, better than anything inferable from a
+  // title. Importing likes alongside it would bury a handful of high-intent saves under
+  // a thousand low-intent ones.
+  //
+  // Likes remain available behind includeLikes for anyone who wants the full backlog.
+  //
+  // Quota: 1 unit per 50 items, so even 5,000 videos costs ~200 units against a
+  // 10,000/day budget. Wall-clock time is the limiting factor, not quota.
   const {
-    includeLikes = true,
+    includeLikes = false,
     includePlaylists = true,
     maxLikes = 5000,
     maxPerPlaylist = 1000,

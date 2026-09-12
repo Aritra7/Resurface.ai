@@ -103,11 +103,45 @@ function ConnectionsInner() {
             : body.error ?? "Sync failed.",
         );
       } else {
-        setNotice(`Imported ${body.imported} of ${body.seen} saved videos.`);
+        setNotice(
+          body.seen === 0
+            ? "No playlist videos found. Save some videos into a YouTube playlist, then import again."
+            : `Imported ${body.imported} of ${body.seen} playlist videos.`,
+        );
       }
     } catch {
       setError("Sync failed. Is the dev server still running?");
     }
+    setBusy(null);
+    load();
+  }
+
+  async function importInstagram(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setBusy("instagram");
+    setError("");
+    setNotice("");
+
+    const body = new FormData();
+    for (const file of Array.from(files)) body.append("files", file);
+
+    try {
+      const response = await fetch("/api/import/instagram", { method: "POST", body });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error ?? "Import failed.");
+      } else {
+        const warnings = result.warnings?.length ? ` (${result.warnings.join(" ")})` : "";
+        setNotice(`Imported ${result.imported} of ${result.seen} saved posts.${warnings}`);
+      }
+    } catch {
+      setError("Import failed. Is the dev server still running?");
+    }
+
+    // Let the same file be picked again after a failed attempt.
+    event.target.value = "";
     setBusy(null);
     load();
   }
@@ -176,7 +210,8 @@ function ConnectionsInner() {
               <div>
                 <h2 className="text-2xl font-semibold">YouTube</h2>
                 <p className="mt-2 max-w-md leading-7 text-[var(--muted)]">
-                  Imports your liked videos and playlists, with real durations.
+                  Imports videos you saved into playlists, with real durations. Playlist
+                  names become topic labels.
                 </p>
               </div>
               <StatusPill connected={Boolean(youtube)} status={youtube?.status} />
@@ -202,7 +237,7 @@ function ConnectionsInner() {
                     onClick={syncYouTube}
                     type="button"
                   >
-                    {busy === "youtube" ? "Importing…" : "Import saved videos"}
+                    {busy === "youtube" ? "Importing…" : "Import playlist videos"}
                   </button>
                   <button
                     className="min-h-12 rounded-full border border-[var(--border)] px-6 font-semibold transition hover:border-[var(--accent)] disabled:opacity-60"
@@ -253,19 +288,46 @@ function ConnectionsInner() {
             </div>
           </article>
 
-          {/* Instagram - import, never credentials */}
-          <article className="rounded-[2rem] border border-dashed border-[var(--border)] bg-white/60 p-7">
+          {/* Instagram - import only, never credentials */}
+          <article className="rounded-[2rem] border border-[var(--border)] bg-white p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-semibold">Instagram</h2>
                 <p className="mt-2 max-w-md leading-7 text-[var(--muted)]">
-                  Upload the Saved file from Instagram&rsquo;s official data export. We never ask for
-                  your Instagram password.
+                  Upload the Saved files from your Instagram data export. We never ask for your
+                  Instagram password and never scrape your Saved page.
                 </p>
               </div>
-              <span className="rounded-full bg-[#edf0e8] px-3 py-1.5 text-sm font-medium text-[var(--muted)]">
-                Coming next
-              </span>
+              <StatusPill connected={(data?.counts.instagram ?? 0) > 0} status="active" />
+            </div>
+
+            {(data?.counts.instagram ?? 0) > 0 && (
+              <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-5 text-sm">
+                <Stat label="Posts imported" value={String(data?.counts.instagram ?? 0)} />
+              </dl>
+            )}
+
+            <div className="mt-6">
+              <label
+                className="inline-flex min-h-12 cursor-pointer items-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white transition hover:bg-[var(--accent-hover)]"
+                htmlFor="ig-upload"
+              >
+                {busy === "instagram" ? "Importing…" : "Upload saved posts"}
+              </label>
+              <input
+                accept=".json,.txt"
+                className="sr-only"
+                disabled={busy === "instagram"}
+                id="ig-upload"
+                multiple
+                onChange={importInstagram}
+                type="file"
+              />
+              <p className="mt-4 text-sm leading-6 text-[var(--muted)]">
+                Select <code>saved_posts.json</code> (and <code>saved_collections.json</code> if you
+                have it) from <code>your_instagram_activity/saved/</code>. A plain text file of Reel
+                links works too.
+              </p>
             </div>
           </article>
         </section>

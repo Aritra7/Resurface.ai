@@ -8,9 +8,18 @@ import { getUsableAccessToken, type ConnectionRow } from "@/lib/connectors/token
 import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { finishSyncRun, ingestItems, startSyncRun, type IngestItem } from "@/lib/ingest";
 
-export async function POST() {
+export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+
+  // Playlists are the default; likes are opt-in. Body is optional, so a bare POST works.
+  let includeLikes = false;
+  try {
+    const body = await request.json();
+    includeLikes = body?.includeLikes === true;
+  } catch {
+    // No body, or not JSON. Keep the default.
+  }
 
   const supabase = createServiceClient();
 
@@ -42,7 +51,7 @@ export async function POST() {
 
   try {
     const accessToken = await getUsableAccessToken(supabase, connection);
-    const videos = await fetchSavedVideos(accessToken);
+    const videos = await fetchSavedVideos(accessToken, { includeLikes });
 
     const items: IngestItem[] = videos.map((video) => ({
       url: `https://youtube.com/watch?v=${video.videoId}`,
