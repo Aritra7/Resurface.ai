@@ -17,11 +17,22 @@ type Goal = {
   is_primary: boolean;
 };
 
+type ResourceSummary = {
+  id: string;
+  title: string | null;
+  source: string;
+  content_type: string;
+  categories: string[];
+  estimated_minutes: number;
+  enrichment_status: string;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [activeResourceCount, setActiveResourceCount] = useState(0);
+  const [recentResources, setRecentResources] = useState<ResourceSummary[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +48,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const [profileResult, goalsResult, resourcesResult] = await Promise.all([
+      const [profileResult, goalsResult, resourcesResult, recentResourcesResult] = await Promise.all([
         supabase
           .from("profiles")
           .select("display_name, default_session_minutes, onboarding_completed")
@@ -54,6 +65,12 @@ export default function DashboardPage() {
           .select("id", { count: "exact", head: true })
           .eq("user_id", authData.user.id)
           .eq("status", "active"),
+        supabase
+          .from("resources")
+          .select("id, title, source, content_type, categories, estimated_minutes, enrichment_status")
+          .eq("user_id", authData.user.id)
+          .order("saved_at", { ascending: false })
+          .limit(6),
       ]);
 
       if (!active) return;
@@ -72,6 +89,7 @@ export default function DashboardPage() {
       setProfile(profileResult.data);
       setGoals(goalsResult.data ?? []);
       setActiveResourceCount(resourcesResult.count ?? 0);
+      setRecentResources((recentResourcesResult.data as ResourceSummary[] | null) ?? []);
       setLoading(false);
     }
 
@@ -129,6 +147,9 @@ export default function DashboardPage() {
             <Link className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white" href="/session/new">
               Start a session
             </Link>
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--border)] bg-white px-6 font-semibold" href="/add">
+              Save a link
+            </Link>
             <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--border)] bg-white px-6 font-semibold" href="/demo">
               Preview sample saves
             </Link>
@@ -168,6 +189,38 @@ export default function DashboardPage() {
               : "Sample saves let you test time budgets, energy modes, explanations, and feedback immediately."}
           </p>
         </section>
+
+        {recentResources.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-lg font-semibold">Recently saved</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {recentResources.map((resource) => (
+                <article className="rounded-2xl border border-[var(--border)] bg-white p-5" key={resource.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-semibold leading-6">{resource.title?.trim() || "Untitled save"}</p>
+                    {resource.enrichment_status === "failed" && (
+                      <span className="shrink-0 rounded-full bg-[#fbeceb] px-2 py-0.5 text-xs font-semibold text-[#8a3a33]">
+                        Needs details
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm capitalize text-[var(--muted)]">
+                    {resource.source} · {resource.content_type.replace("_", " ")} · {resource.estimated_minutes} min
+                  </p>
+                  {resource.categories.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {resource.categories.map((category) => (
+                        <span className="rounded-full bg-[#edf0e8] px-2.5 py-1 text-xs font-medium" key={category}>
+                          {category}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
