@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Third-party agent skills and the demo video project. Vendored tooling, not
+    // application source, and it does not follow this project's lint rules.
+    ".agents/**",
+    ".claude/**",
+    "videos/**",
   ]),
 ]);
 
