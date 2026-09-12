@@ -26,6 +26,16 @@ type ConnectionStatus = {
   last_sync_at: string | null;
 };
 
+type RecentResource = {
+  id: string;
+  title: string | null;
+  source: string;
+  content_type: string;
+  categories: string[];
+  estimated_minutes: number;
+  enrichment_status: string;
+};
+
 /** Human labels for the providers, so the UI never prints a raw enum value. */
 const PROVIDER_LABEL: Record<string, string> = {
   youtube: "YouTube",
@@ -43,6 +53,7 @@ export default function DashboardPage() {
   const [activeResourceCount, setActiveResourceCount] = useState(0);
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
   const [sourceCounts, setSourceCounts] = useState<Record<string, number>>({});
+  const [recentResources, setRecentResources] = useState<RecentResource[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -56,7 +67,7 @@ export default function DashboardPage() {
       const supabase = createClient();
       const authData = { user: user! };
 
-      const [profileResult, goalsResult, resourcesResult, connectionsResult, sourcesResult] =
+      const [profileResult, goalsResult, resourcesResult, connectionsResult, sourcesResult, recentResult] =
         await Promise.all([
         supabase
           .from("profiles")
@@ -85,6 +96,12 @@ export default function DashboardPage() {
           .select("source")
           .eq("user_id", authData.user.id)
           .eq("status", "active"),
+        supabase
+          .from("resources")
+          .select("id, title, source, content_type, categories, estimated_minutes, enrichment_status")
+          .eq("user_id", authData.user.id)
+          .order("saved_at", { ascending: false })
+          .limit(6),
       ]);
 
       if (!active) return;
@@ -111,6 +128,7 @@ export default function DashboardPage() {
       setActiveResourceCount(resourcesResult.count ?? 0);
       setConnections(connectionsResult.data ?? []);
       setSourceCounts(counts);
+      setRecentResources((recentResult.data as RecentResource[] | null) ?? []);
       setLoading(false);
     }
 
@@ -183,6 +201,9 @@ export default function DashboardPage() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--accent)] px-6 font-semibold text-white" href="/session/new">
               Start a session
+            </Link>
+            <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--accent)] bg-white px-6 font-semibold text-[var(--accent)]" href="/add">
+              Add a save
             </Link>
             <Link className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--border)] bg-white px-6 font-semibold" href="/demo">
               Preview sample saves
@@ -271,6 +292,43 @@ export default function DashboardPage() {
             </Link>
           )}
         </section>
+
+        {recentResources.length > 0 && (
+          <section className="mt-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold">Recently saved</h2>
+              <Link className="text-sm font-medium text-[var(--accent)] hover:underline" href="/add">
+                Add another
+              </Link>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {recentResources.map((resource) => (
+                <article className="rounded-2xl border border-[var(--border)] bg-white p-5" key={resource.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-semibold leading-6">{resource.title?.trim() || "Untitled save"}</p>
+                    {resource.enrichment_status === "failed" && (
+                      <span className="shrink-0 rounded-full bg-[#fbeceb] px-2 py-0.5 text-xs font-semibold text-[#8a3a33]">
+                        Needs details
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm capitalize text-[var(--muted)]">
+                    {resource.source.replace("_", " ")} · {resource.content_type.replace("_", " ")} · {resource.estimated_minutes} min
+                  </p>
+                  {resource.categories.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {resource.categories.map((category) => (
+                        <span className="rounded-full bg-[#edf0e8] px-2.5 py-1 text-xs font-medium" key={category}>
+                          {category}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
